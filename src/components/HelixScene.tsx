@@ -57,13 +57,13 @@ export function HelixStrands({ progress, isMobile }: { progress: number; isMobil
 
         // Gold strand vs moss strand
         if (strand === 0) {
-          col[(offset + i) * 3] = 0.79;
-          col[(offset + i) * 3 + 1] = 0.66;
-          col[(offset + i) * 3 + 2] = 0.30;
+          col[(offset + i) * 3] = 0.88;
+          col[(offset + i) * 3 + 1] = 0.75;
+          col[(offset + i) * 3 + 2] = 0.38;
         } else {
-          col[(offset + i) * 3] = 0.29;
-          col[(offset + i) * 3 + 1] = 0.49;
-          col[(offset + i) * 3 + 2] = 0.35;
+          col[(offset + i) * 3] = 0.43;
+          col[(offset + i) * 3 + 1] = 0.65;
+          col[(offset + i) * 3 + 2] = 0.50;
         }
       }
     }
@@ -120,10 +120,10 @@ export function HelixStrands({ progress, isMobile }: { progress: number; isMobil
         <bufferAttribute attach="attributes-color" args={[colors, 3]} />
       </bufferGeometry>
       <pointsMaterial
-        size={isMobile ? 0.08 : 0.06}
+        size={isMobile ? 0.14 : 0.10}
         vertexColors
         transparent
-        opacity={0.85}
+        opacity={0.9}
         blending={THREE.AdditiveBlending}
         depthWrite={false}
         sizeAttenuation
@@ -173,10 +173,10 @@ export function HelixRungs({ progress, isMobile }: { progress: number; isMobile:
     const sceneP = Math.max(0, Math.min(1, (progress - 0.54) / 0.15));
 
     // Rungs appear after strands coalesce (latter 40% of scene)
-    const rungPhase = Math.max(0, (sceneP - 0.5) / 0.5);
+    const rungPhase = Math.max(0, (sceneP - 0.4) / 0.6);
 
     const mat = meshRef.current.material as THREE.LineBasicMaterial;
-    mat.opacity = rungPhase * 0.5;
+    mat.opacity = rungPhase * 0.7;
 
     // Rotate with helix
     const rotAngle = t * 0.2;
@@ -184,7 +184,7 @@ export function HelixRungs({ progress, isMobile }: { progress: number; isMobile:
     flashRef.current.rotation.y = rotAngle;
 
     const flashMat = flashRef.current.material as THREE.PointsMaterial;
-    flashMat.opacity = rungPhase * (0.3 + Math.sin(t * 3) * 0.3);
+    flashMat.opacity = rungPhase * (0.5 + Math.sin(t * 3) * 0.4);
   });
 
   return (
@@ -205,7 +205,7 @@ export function HelixRungs({ progress, isMobile }: { progress: number; isMobile:
           <bufferAttribute attach="attributes-position" args={[flashPositions, 3]} />
         </bufferGeometry>
         <pointsMaterial
-          size={isMobile ? 0.15 : 0.12}
+          size={isMobile ? 0.25 : 0.20}
           color="#e2cc7a"
           transparent
           opacity={0}
@@ -221,10 +221,10 @@ export function HelixRungs({ progress, isMobile }: { progress: number; isMobile:
 export function HelixLighting() {
   return (
     <>
-      <ambientLight intensity={0.03} />
-      <pointLight position={[0, 5, 3]} intensity={0.7} color="#c9a84c" distance={15} decay={2} />
-      <pointLight position={[0, -5, 3]} intensity={0.5} color="#4a7c59" distance={15} decay={2} />
-      <pointLight position={[3, 0, -2]} intensity={0.3} color="#e4dcc8" distance={10} decay={2} />
+      <ambientLight intensity={0.08} />
+      <pointLight position={[0, 5, 3]} intensity={1.2} color="#c9a84c" distance={18} decay={2} />
+      <pointLight position={[0, -5, 3]} intensity={0.8} color="#4a7c59" distance={18} decay={2} />
+      <pointLight position={[3, 0, -2]} intensity={0.5} color="#e4dcc8" distance={12} decay={2} />
     </>
   );
 }

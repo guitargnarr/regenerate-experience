@@ -28,12 +28,13 @@ function mono(size: string): CSSProperties {
 
 /* === TextSection: fades in/out based on progress === */
 
-function TextSection({ children, enterAt, exitAt, progress, style }: {
+function TextSection({ children, enterAt, exitAt, progress, style, heroMode }: {
   children: ReactNode;
   enterAt: number;
   exitAt: number;
   progress: number;
   style?: CSSProperties;
+  heroMode?: boolean;
 }) {
   const fadeInDuration = 0.03;
   const fadeOutDuration = 0.03;
@@ -41,7 +42,15 @@ function TextSection({ children, enterAt, exitAt, progress, style }: {
   let opacity = 0;
   let yOffset = 24;
 
-  if (progress >= enterAt && progress <= exitAt) {
+  if (heroMode) {
+    // Hero: fully visible at 0, fades out normally
+    if (progress <= exitAt) {
+      const fadeOutProgress = Math.min(1, (exitAt - progress) / fadeOutDuration);
+      const easeOut = fadeOutProgress * fadeOutProgress;
+      opacity = easeOut;
+      yOffset = -16 * (1 - easeOut);
+    }
+  } else if (progress >= enterAt && progress <= exitAt) {
     const fadeInProgress = Math.min(1, (progress - enterAt) / fadeInDuration);
     const fadeOutProgress = Math.min(1, (exitAt - progress) / fadeOutDuration);
 
@@ -80,7 +89,7 @@ function ScrollGuide({ progress }: { progress: number }) {
   else if (progress < 0.88) numeral = "V";
   else numeral = "";
 
-  if (progress > 0.92 || progress < 0.005) return null;
+  if (progress > 0.92) return null;
 
   const angle = progress * Math.PI * 2;
   const r = 16;
@@ -141,19 +150,19 @@ export default function TextOverlay({ progress, isMobile }: TextOverlayProps) {
     }}>
       <div style={{ maxWidth: maxW, padding: `0 ${px}`, textAlign: "center" }}>
 
-        {/* === TITLE === */}
-        <TextSection enterAt={0.0} exitAt={0.06} progress={progress}>
-          <div style={{ ...serif(isMobile ? "clamp(1.8rem, 6vw, 3rem)" : "clamp(2rem, 4vw, 3.5rem)", 700), color: "#4a7c59", letterSpacing: "0.08em" }}>
+        {/* === TITLE (Hero -- visible immediately on page load) === */}
+        <TextSection enterAt={0.0} exitAt={0.06} progress={progress} heroMode>
+          <div style={{ ...serif(isMobile ? "clamp(1.8rem, 6vw, 3rem)" : "clamp(2rem, 4vw, 3.5rem)", 700), color: "#6ea87e", letterSpacing: "0.08em", textShadow: "0 0 40px rgba(74, 124, 89, 0.4)" }}>
             REGENERATE
           </div>
-          <div style={{ ...mono(isMobile ? "0.7rem" : "0.8rem"), color: "#7a8a72", marginTop: "1rem", letterSpacing: "0.2em" }}>
+          <div style={{ ...mono(isMobile ? "0.7rem" : "0.8rem"), color: "#a3c9a8", marginTop: "1rem", letterSpacing: "0.2em" }}>
             The story of what was already happening
           </div>
         </TextSection>
 
         {/* === ACT I: THE SILENCE === */}
         <TextSection enterAt={0.05} exitAt={0.12} progress={progress}>
-          <div style={{ ...mono(isMobile ? "0.6rem" : "0.7rem"), color: "#7a8a72", letterSpacing: "0.3em", marginBottom: "1.5rem" }}>
+          <div style={{ ...mono(isMobile ? "0.6rem" : "0.7rem"), color: "#a3c9a8", letterSpacing: "0.3em", marginBottom: "1.5rem" }}>
             I. THE SILENCE
           </div>
           <div style={{ ...sans(isMobile ? "0.95rem" : "1.1rem"), color: "#e4dcc8" }}>
@@ -172,7 +181,7 @@ export default function TextOverlay({ progress, isMobile }: TextOverlayProps) {
 
         {/* === ACT II: THE PROLIFERATION === */}
         <TextSection enterAt={0.21} exitAt={0.27} progress={progress}>
-          <div style={{ ...mono(isMobile ? "0.6rem" : "0.7rem"), color: "#7a8a72", letterSpacing: "0.3em", marginBottom: "1.5rem" }}>
+          <div style={{ ...mono(isMobile ? "0.6rem" : "0.7rem"), color: "#a3c9a8", letterSpacing: "0.3em", marginBottom: "1.5rem" }}>
             II. THE PROLIFERATION
           </div>
           <div style={{ ...sans(isMobile ? "0.95rem" : "1.1rem"), color: "#e4dcc8" }}>
@@ -188,7 +197,7 @@ export default function TextOverlay({ progress, isMobile }: TextOverlayProps) {
 
         {/* === ACT III: THE SEARCH === */}
         <TextSection enterAt={0.38} exitAt={0.44} progress={progress}>
-          <div style={{ ...mono(isMobile ? "0.6rem" : "0.7rem"), color: "#7a8a72", letterSpacing: "0.3em", marginBottom: "1.5rem" }}>
+          <div style={{ ...mono(isMobile ? "0.6rem" : "0.7rem"), color: "#a3c9a8", letterSpacing: "0.3em", marginBottom: "1.5rem" }}>
             III. THE SEARCH
           </div>
           <div style={{ ...sans(isMobile ? "0.95rem" : "1.1rem"), color: "#e4dcc8" }}>
@@ -207,7 +216,7 @@ export default function TextOverlay({ progress, isMobile }: TextOverlayProps) {
 
         {/* === ACT IV: THE CONVERGENCE === */}
         <TextSection enterAt={0.55} exitAt={0.61} progress={progress}>
-          <div style={{ ...mono(isMobile ? "0.6rem" : "0.7rem"), color: "#7a8a72", letterSpacing: "0.3em", marginBottom: "1.5rem" }}>
+          <div style={{ ...mono(isMobile ? "0.6rem" : "0.7rem"), color: "#a3c9a8", letterSpacing: "0.3em", marginBottom: "1.5rem" }}>
             IV. THE CONVERGENCE
           </div>
           <div style={{ ...sans(isMobile ? "0.95rem" : "1.1rem"), color: "#e4dcc8" }}>
@@ -223,7 +232,7 @@ export default function TextOverlay({ progress, isMobile }: TextOverlayProps) {
 
         {/* === ACT V: THE SPARK === */}
         <TextSection enterAt={0.72} exitAt={0.78} progress={progress}>
-          <div style={{ ...mono(isMobile ? "0.6rem" : "0.7rem"), color: "#7a8a72", letterSpacing: "0.3em", marginBottom: "1.5rem" }}>
+          <div style={{ ...mono(isMobile ? "0.6rem" : "0.7rem"), color: "#a3c9a8", letterSpacing: "0.3em", marginBottom: "1.5rem" }}>
             V. THE SPARK
           </div>
           <div style={{ ...sans(isMobile ? "0.95rem" : "1.1rem"), color: "#e4dcc8" }}>
@@ -238,17 +247,17 @@ export default function TextOverlay({ progress, isMobile }: TextOverlayProps) {
         </TextSection>
 
         {/* === OUTRO === */}
-        <TextSection enterAt={0.88} exitAt={0.98} progress={progress}>
-          <div style={{ ...sans(isMobile ? "0.95rem" : "1.05rem"), color: "#a3c9a8", lineHeight: 1.8, maxWidth: "540px", margin: "0 auto" }}>
+        <TextSection enterAt={0.88} exitAt={1.01} progress={progress}>
+          <div style={{ ...sans(isMobile ? "0.95rem" : "1.05rem"), color: "#e4dcc8", lineHeight: 1.8, maxWidth: "540px", margin: "0 auto" }}>
             Regeneration doesn't announce itself. It happens in the silence between commits, in the projects that fail, in the tools built for needs that change.
           </div>
-          <div style={{ ...sans(isMobile ? "0.95rem" : "1.05rem"), color: "#a3c9a8", lineHeight: 1.8, maxWidth: "540px", margin: "1.5rem auto 0", }}>
+          <div style={{ ...sans(isMobile ? "0.95rem" : "1.05rem"), color: "#e4dcc8", lineHeight: 1.8, maxWidth: "540px", margin: "1.5rem auto 0", }}>
             You don't decide to reinvent yourself. You just keep building, and one day what you've built is a different person.
           </div>
         </TextSection>
 
-        <TextSection enterAt={0.96} exitAt={1.0} progress={progress}>
-          <div style={{ ...mono("0.7rem"), color: "#4a7c59", letterSpacing: "0.2em", marginTop: "2rem" }}>
+        <TextSection enterAt={0.96} exitAt={1.01} progress={progress}>
+          <div style={{ ...mono("0.7rem"), color: "#6ea87e", letterSpacing: "0.2em", marginTop: "2rem" }}>
             Project Lavos
           </div>
         </TextSection>

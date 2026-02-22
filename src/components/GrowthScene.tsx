@@ -26,8 +26,7 @@ function generateTree(maxDepth: number): Branch[] {
     depth: 0,
   });
 
-  const seed = 42;
-  let seedState = seed;
+  let seedState = 42;
   const seededRandom = () => {
     seedState = (seedState * 16807) % 2147483647;
     return (seedState - 1) / 2147483646;
@@ -55,7 +54,6 @@ function generateTree(maxDepth: number): Branch[] {
         const twist = (seededRandom() - 0.5) * Math.PI * 2;
         const childDir = dir.clone();
 
-        // Rotate around random axis
         const axis = new THREE.Vector3(
           Math.sin(twist) * spread,
           Math.cos(spread * 0.5),
@@ -89,16 +87,15 @@ export function TreeBranches({ progress, isMobile }: { progress: number; isMobil
       pos[i * 6 + 4] = branch.end.y;
       pos[i * 6 + 5] = branch.end.z;
 
-      // Color: trunk = moss, tips = gold/rose
       const t = branch.depth / 7;
-      // Start vertex
-      col[i * 6] = 0.29 + t * 0.5;     // R: moss -> gold
-      col[i * 6 + 1] = 0.49 - t * 0.1;  // G: moss -> less green
-      col[i * 6 + 2] = 0.35 - t * 0.15; // B: moss -> warm
+      // Start vertex: vivid green -> gold at tips
+      col[i * 6] = 0.45 + t * 0.50;
+      col[i * 6 + 1] = 0.85 - t * 0.10;
+      col[i * 6 + 2] = 0.50 - t * 0.20;
       // End vertex
-      col[i * 6 + 3] = 0.29 + t * 0.55;
-      col[i * 6 + 4] = 0.49 - t * 0.15;
-      col[i * 6 + 5] = 0.35 - t * 0.2;
+      col[i * 6 + 3] = 0.50 + t * 0.50;
+      col[i * 6 + 4] = 0.85 - t * 0.15;
+      col[i * 6 + 5] = 0.50 - t * 0.25;
     }
 
     return { branches: b, positions: pos, colors: col };
@@ -109,7 +106,6 @@ export function TreeBranches({ progress, isMobile }: { progress: number; isMobil
     timeRef.current += delta;
     const sceneP = Math.max(0, Math.min(1, (progress - 0.20) / 0.15));
 
-    // Reveal branches progressively based on depth
     const posAttr = meshRef.current.geometry.attributes.position as THREE.BufferAttribute;
     const arr = posAttr.array as Float32Array;
 
@@ -118,13 +114,11 @@ export function TreeBranches({ progress, isMobile }: { progress: number; isMobil
     for (let i = 0; i < branches.length; i++) {
       const branch = branches[i];
       if (branch.depth <= maxVisibleDepth) {
-        // Grow from start toward end
         const branchProgress = Math.min(1, (maxVisibleDepth - branch.depth) * 2);
         arr[i * 6 + 3] = branch.start.x + (branch.end.x - branch.start.x) * branchProgress;
         arr[i * 6 + 4] = branch.start.y + (branch.end.y - branch.start.y) * branchProgress;
         arr[i * 6 + 5] = branch.start.z + (branch.end.z - branch.start.z) * branchProgress;
       } else {
-        // Hidden: collapse to start point
         arr[i * 6 + 3] = arr[i * 6];
         arr[i * 6 + 4] = arr[i * 6 + 1];
         arr[i * 6 + 5] = arr[i * 6 + 2];
@@ -133,9 +127,11 @@ export function TreeBranches({ progress, isMobile }: { progress: number; isMobil
 
     posAttr.needsUpdate = true;
 
-    // Gentle sway
     const t = timeRef.current;
     meshRef.current.rotation.y = Math.sin(t * 0.15) * 0.05;
+
+    const mat = meshRef.current.material as THREE.LineBasicMaterial;
+    mat.opacity = 0.85 + sceneP * 0.15;
   });
 
   return (
@@ -147,16 +143,101 @@ export function TreeBranches({ progress, isMobile }: { progress: number; isMobil
       <lineBasicMaterial
         vertexColors
         transparent
-        opacity={0.85}
-        blending={THREE.AdditiveBlending}
+        opacity={0.95}
         linewidth={1}
       />
     </lineSegments>
   );
 }
 
+export function BranchParticles({ progress, isMobile }: { progress: number; isMobile: boolean }) {
+  const SAMPLES_PER_BRANCH = 3;
+  const meshRef = useRef<THREE.Points>(null);
+  const timeRef = useRef(0);
+
+  const { branchData, positions, colors } = useMemo(() => {
+    const b = generateTree(isMobile ? 5 : 7);
+    const total = b.length * SAMPLES_PER_BRANCH;
+    const pos = new Float32Array(total * 3);
+    const col = new Float32Array(total * 3);
+    const data: Array<{ depth: number; points: Array<{ x: number; y: number; z: number }> }> = [];
+
+    for (let i = 0; i < b.length; i++) {
+      const branch = b[i];
+      const pts: Array<{ x: number; y: number; z: number }> = [];
+      for (let s = 0; s < SAMPLES_PER_BRANCH; s++) {
+        const frac = (s + 0.5) / SAMPLES_PER_BRANCH;
+        const idx = (i * SAMPLES_PER_BRANCH + s) * 3;
+        const x = branch.start.x + (branch.end.x - branch.start.x) * frac;
+        const y = branch.start.y + (branch.end.y - branch.start.y) * frac;
+        const z = branch.start.z + (branch.end.z - branch.start.z) * frac;
+        pos[idx] = x;
+        pos[idx + 1] = y;
+        pos[idx + 2] = z;
+        pts.push({ x, y, z });
+
+        const t = branch.depth / 7;
+        col[idx] = 0.50 + t * 0.45;
+        col[idx + 1] = 0.85 - t * 0.10;
+        col[idx + 2] = 0.50 - t * 0.20;
+      }
+      data.push({ depth: branch.depth, points: pts });
+    }
+
+    return { branchData: data, positions: pos, colors: col };
+  }, [isMobile]);
+
+  useFrame((_, delta) => {
+    if (!meshRef.current) return;
+    timeRef.current += delta;
+    const sceneP = Math.max(0, Math.min(1, (progress - 0.20) / 0.15));
+    const maxVisibleDepth = sceneP * 8;
+
+    const posAttr = meshRef.current.geometry.attributes.position as THREE.BufferAttribute;
+    const arr = posAttr.array as Float32Array;
+
+    for (let i = 0; i < branchData.length; i++) {
+      const bd = branchData[i];
+      for (let s = 0; s < SAMPLES_PER_BRANCH; s++) {
+        const idx = (i * SAMPLES_PER_BRANCH + s) * 3;
+        if (bd.depth <= maxVisibleDepth) {
+          arr[idx] = bd.points[s].x;
+          arr[idx + 1] = bd.points[s].y;
+          arr[idx + 2] = bd.points[s].z;
+        } else {
+          arr[idx + 1] = -100; // hide
+        }
+      }
+    }
+
+    posAttr.needsUpdate = true;
+    meshRef.current.rotation.y = Math.sin(timeRef.current * 0.15) * 0.05;
+
+    const mat = meshRef.current.material as THREE.PointsMaterial;
+    mat.opacity = sceneP * 0.7;
+  });
+
+  return (
+    <points ref={meshRef}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+        <bufferAttribute attach="attributes-color" args={[colors, 3]} />
+      </bufferGeometry>
+      <pointsMaterial
+        size={isMobile ? 0.08 : 0.06}
+        vertexColors
+        transparent
+        opacity={0}
+        blending={THREE.AdditiveBlending}
+        depthWrite={false}
+        sizeAttenuation
+      />
+    </points>
+  );
+}
+
 export function LeafBuds({ progress, isMobile }: { progress: number; isMobile: boolean }) {
-  const COUNT = isMobile ? 30 : 60;
+  const COUNT = isMobile ? 40 : 80;
   const meshRef = useRef<THREE.Points>(null);
   const timeRef = useRef(0);
 
@@ -174,11 +255,10 @@ export function LeafBuds({ progress, isMobile }: { progress: number; isMobile: b
       pos[i * 3 + 1] = tip.end.y;
       pos[i * 3 + 2] = tip.end.z;
 
-      // Rose or gold buds
       const isRose = i % 3 === 0;
-      col[i * 3] = isRose ? 0.83 : 0.79;
-      col[i * 3 + 1] = isRose ? 0.57 : 0.66;
-      col[i * 3 + 2] = isRose ? 0.54 : 0.30;
+      col[i * 3] = isRose ? 0.90 : 0.85;
+      col[i * 3 + 1] = isRose ? 0.62 : 0.72;
+      col[i * 3 + 2] = isRose ? 0.58 : 0.35;
     }
 
     return { positions: pos, colors: col };
@@ -191,10 +271,9 @@ export function LeafBuds({ progress, isMobile }: { progress: number; isMobile: b
     const sceneP = Math.max(0, Math.min(1, (progress - 0.20) / 0.15));
 
     const mat = meshRef.current.material as THREE.PointsMaterial;
-    // Buds appear in latter half of scene
-    const budPhase = Math.max(0, (sceneP - 0.4) / 0.6);
-    mat.opacity = budPhase * 0.8;
-    mat.size = (isMobile ? 0.1 : 0.08) * budPhase + Math.sin(t * 2) * 0.01;
+    const budPhase = Math.max(0, (sceneP - 0.3) / 0.7);
+    mat.opacity = budPhase * 0.9;
+    mat.size = (isMobile ? 0.18 : 0.14) * budPhase + Math.sin(t * 2) * 0.02;
   });
 
   return (
@@ -204,7 +283,7 @@ export function LeafBuds({ progress, isMobile }: { progress: number; isMobile: b
         <bufferAttribute attach="attributes-color" args={[colors, 3]} />
       </bufferGeometry>
       <pointsMaterial
-        size={0.08}
+        size={0.14}
         vertexColors
         transparent
         opacity={0}
@@ -219,10 +298,10 @@ export function LeafBuds({ progress, isMobile }: { progress: number; isMobile: b
 export function GrowthLighting() {
   return (
     <>
-      <ambientLight intensity={0.04} />
-      <pointLight position={[0, 5, 3]} intensity={0.8} color="#4a7c59" distance={15} decay={2} />
-      <pointLight position={[-3, -1, 2]} intensity={0.4} color="#c9a84c" distance={10} decay={2} />
-      <pointLight position={[2, 3, -2]} intensity={0.3} color="#d4918a" distance={8} decay={2} />
+      <ambientLight intensity={0.08} />
+      <pointLight position={[0, 5, 3]} intensity={1.5} color="#4a7c59" distance={18} decay={2} />
+      <pointLight position={[-3, -1, 2]} intensity={0.8} color="#c9a84c" distance={14} decay={2} />
+      <pointLight position={[2, 3, -2]} intensity={0.5} color="#d4918a" distance={10} decay={2} />
     </>
   );
 }

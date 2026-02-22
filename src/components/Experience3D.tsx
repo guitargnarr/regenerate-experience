@@ -20,7 +20,7 @@ import { useRef, useMemo } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { EmberCore, DustMotes, EmberLighting } from "./EmberScene";
-import { TreeBranches, LeafBuds, GrowthLighting } from "./GrowthScene";
+import { TreeBranches, BranchParticles, LeafBuds, GrowthLighting } from "./GrowthScene";
 import { VoronoiCells, TessellationLighting } from "./TessellationScene";
 import { HelixStrands, HelixRungs, HelixLighting } from "./HelixScene";
 import { AttractorPath, SparkParticles, AttractorGlow, AttractorLighting } from "./AttractorScene";
@@ -140,12 +140,9 @@ function MorphCamera({ progress, isMobile }: { progress: number; isMobile: boole
 
 function EmberGroup({ progress, isMobile }: { progress: number; isMobile: boolean }) {
   const ref = useRef<THREE.Group>(null);
-  useFrame(() => {
-    if (!ref.current) return;
-    const fade = progress < 0.20 ? 1 : Math.max(0, 1 - (progress - 0.20) / 0.04);
-    ref.current.visible = fade > 0.01;
-    ref.current.scale.setScalar(0.95 + fade * 0.05);
-  });
+  // Always visible -- scene itself handles internal opacity; we just kill it after transition
+  const active = progress < 0.24;
+  if (!active) return null;
   return (
     <group ref={ref}>
       <EmberLighting />
@@ -156,32 +153,23 @@ function EmberGroup({ progress, isMobile }: { progress: number; isMobile: boolea
 }
 
 function GrowthGroup({ progress, isMobile }: { progress: number; isMobile: boolean }) {
-  const ref = useRef<THREE.Group>(null);
-  useFrame(() => {
-    if (!ref.current) return;
-    const fadeIn = progress < 0.18 ? 0 : Math.min(1, (progress - 0.18) / 0.04);
-    const fadeOut = progress < 0.37 ? 1 : Math.max(0, 1 - (progress - 0.37) / 0.04);
-    ref.current.visible = Math.min(fadeIn, fadeOut) > 0.01;
-  });
+  const active = progress > 0.16 && progress < 0.41;
+  if (!active) return null;
   return (
-    <group ref={ref}>
+    <group>
       <GrowthLighting />
       <TreeBranches progress={progress} isMobile={isMobile} />
+      <BranchParticles progress={progress} isMobile={isMobile} />
       <LeafBuds progress={progress} isMobile={isMobile} />
     </group>
   );
 }
 
 function TessellationGroup({ progress, isMobile }: { progress: number; isMobile: boolean }) {
-  const ref = useRef<THREE.Group>(null);
-  useFrame(() => {
-    if (!ref.current) return;
-    const fadeIn = progress < 0.35 ? 0 : Math.min(1, (progress - 0.35) / 0.04);
-    const fadeOut = progress < 0.54 ? 1 : Math.max(0, 1 - (progress - 0.54) / 0.04);
-    ref.current.visible = Math.min(fadeIn, fadeOut) > 0.01;
-  });
+  const active = progress > 0.33 && progress < 0.58;
+  if (!active) return null;
   return (
-    <group ref={ref}>
+    <group>
       <TessellationLighting />
       <VoronoiCells progress={progress} isMobile={isMobile} />
     </group>
@@ -189,15 +177,10 @@ function TessellationGroup({ progress, isMobile }: { progress: number; isMobile:
 }
 
 function HelixGroup({ progress, isMobile }: { progress: number; isMobile: boolean }) {
-  const ref = useRef<THREE.Group>(null);
-  useFrame(() => {
-    if (!ref.current) return;
-    const fadeIn = progress < 0.52 ? 0 : Math.min(1, (progress - 0.52) / 0.04);
-    const fadeOut = progress < 0.71 ? 1 : Math.max(0, 1 - (progress - 0.71) / 0.04);
-    ref.current.visible = Math.min(fadeIn, fadeOut) > 0.01;
-  });
+  const active = progress > 0.50 && progress < 0.75;
+  if (!active) return null;
   return (
-    <group ref={ref}>
+    <group>
       <HelixLighting />
       <HelixStrands progress={progress} isMobile={isMobile} />
       <HelixRungs progress={progress} isMobile={isMobile} />
@@ -206,14 +189,10 @@ function HelixGroup({ progress, isMobile }: { progress: number; isMobile: boolea
 }
 
 function AttractorGroup({ progress, isMobile }: { progress: number; isMobile: boolean }) {
-  const ref = useRef<THREE.Group>(null);
-  useFrame(() => {
-    if (!ref.current) return;
-    const fadeIn = progress < 0.69 ? 0 : Math.min(1, (progress - 0.69) / 0.04);
-    ref.current.visible = fadeIn > 0.01;
-  });
+  const active = progress > 0.67;
+  if (!active) return null;
   return (
-    <group ref={ref}>
+    <group>
       <AttractorLighting />
       <AttractorPath progress={progress} isMobile={isMobile} />
       <SparkParticles progress={progress} isMobile={isMobile} />
@@ -257,7 +236,7 @@ function AmbientParticles({ isMobile }: { isMobile: boolean }) {
       <bufferGeometry>
         <bufferAttribute attach="attributes-position" args={[positions, 3]} />
       </bufferGeometry>
-      <pointsMaterial size={0.02} color="#2a3428" transparent opacity={0.3} blending={THREE.AdditiveBlending} depthWrite={false} sizeAttenuation />
+      <pointsMaterial size={0.03} color="#3a5440" transparent opacity={0.4} blending={THREE.AdditiveBlending} depthWrite={false} sizeAttenuation />
     </points>
   );
 }
@@ -274,7 +253,7 @@ export default function Experience3D({ progress, isMobile = false }: SceneProps)
       <Canvas
         camera={{ position: [0, 0.5, 10], fov: isMobile ? 65 : 50, near: 0.1, far: 100 }}
         dpr={isMobile ? [1, 1.5] : [1, 2]}
-        gl={{ antialias: !isMobile, powerPreference: isMobile ? "low-power" : "default", toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.1 }}
+        gl={{ antialias: !isMobile, powerPreference: isMobile ? "low-power" : "default", toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 0.9 }}
         style={{ pointerEvents: "none" }}
       >
         <color attach="background" args={["#0a0d08"]} />

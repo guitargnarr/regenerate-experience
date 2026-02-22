@@ -17,7 +17,7 @@ const SIGMA = 10;
 const RHO = 28;
 const BETA = 8 / 3;
 const DT = 0.005;
-const SCALE = 0.15;
+const SCALE = 0.22;
 
 function integrateLorenz(steps: number): Float32Array {
   const points = new Float32Array(steps * 3);
@@ -53,19 +53,22 @@ export function AttractorPath({ progress, isMobile }: { progress: number; isMobi
     for (let i = 0; i < TOTAL_POINTS; i++) {
       const t = i / TOTAL_POINTS;
       if (t < 0.33) {
+        // Moss green -> gold (brighter start)
         const s = t / 0.33;
-        col[i * 3] = 0.29 + s * 0.5;
-        col[i * 3 + 1] = 0.49 - s * 0.1;
-        col[i * 3 + 2] = 0.35 - s * 0.15;
+        col[i * 3] = 0.43 + s * 0.45;
+        col[i * 3 + 1] = 0.65 - s * 0.05;
+        col[i * 3 + 2] = 0.45 - s * 0.15;
       } else if (t < 0.66) {
+        // Gold -> cream
         const s = (t - 0.33) / 0.33;
-        col[i * 3] = 0.79 + s * 0.1;
-        col[i * 3 + 1] = 0.66 + s * 0.2;
-        col[i * 3 + 2] = 0.30 + s * 0.48;
+        col[i * 3] = 0.88 + s * 0.06;
+        col[i * 3 + 1] = 0.75 + s * 0.11;
+        col[i * 3 + 2] = 0.38 + s * 0.42;
       } else {
-        col[i * 3] = 0.89;
-        col[i * 3 + 1] = 0.86;
-        col[i * 3 + 2] = 0.78;
+        // Cream
+        col[i * 3] = 0.94;
+        col[i * 3 + 1] = 0.90;
+        col[i * 3 + 2] = 0.82;
       }
     }
 
@@ -82,7 +85,7 @@ export function AttractorPath({ progress, isMobile }: { progress: number; isMobi
     const material = new THREE.LineBasicMaterial({
       vertexColors: true,
       transparent: true,
-      opacity: 0.6,
+      opacity: 0.85,
       blending: THREE.AdditiveBlending,
     });
 
@@ -106,7 +109,7 @@ export function AttractorPath({ progress, isMobile }: { progress: number; isMobi
     lineObjRef.current.geometry.setDrawRange(0, visiblePoints);
 
     const mat = lineObjRef.current.material as THREE.LineBasicMaterial;
-    mat.opacity = 0.6 + sceneP * 0.3;
+    mat.opacity = 0.85 + sceneP * 0.1;
 
     lineObjRef.current.rotation.y = timeRef.current * 0.05;
   });
@@ -155,8 +158,8 @@ export function SparkParticles({ progress, isMobile }: { progress: number; isMob
     meshRef.current.rotation.y = t * 0.05;
 
     const mat = meshRef.current.material as THREE.PointsMaterial;
-    mat.opacity = sceneP * 0.8;
-    mat.size = (isMobile ? 0.1 : 0.08) + Math.sin(t * 4) * 0.02;
+    mat.opacity = sceneP * 0.95;
+    mat.size = (isMobile ? 0.18 : 0.14) + Math.sin(t * 4) * 0.03;
   });
 
   return (
@@ -165,7 +168,7 @@ export function SparkParticles({ progress, isMobile }: { progress: number; isMob
         <bufferAttribute attach="attributes-position" args={[positions, 3]} />
       </bufferGeometry>
       <pointsMaterial
-        size={0.08}
+        size={0.14}
         color="#e2cc7a"
         transparent
         opacity={0}
@@ -188,9 +191,9 @@ export function AttractorGlow({ progress }: { progress: number }) {
     const sceneP = Math.max(0, Math.min(1, (progress - 0.71) / 0.15));
 
     const mat = meshRef.current.material as THREE.MeshStandardMaterial;
-    mat.emissiveIntensity = sceneP * 0.3 + Math.sin(t * 0.5) * 0.1;
-    mat.opacity = sceneP * 0.08;
-    meshRef.current.scale.setScalar(3 + sceneP * 2);
+    mat.emissiveIntensity = sceneP * 0.8 + Math.sin(t * 0.5) * 0.2;
+    mat.opacity = sceneP * 0.15;
+    meshRef.current.scale.setScalar(4 + sceneP * 3);
   });
 
   return (
@@ -212,10 +215,10 @@ export function AttractorGlow({ progress }: { progress: number }) {
 export function AttractorLighting() {
   return (
     <>
-      <ambientLight intensity={0.04} />
-      <pointLight position={[0, 3, 5]} intensity={0.8} color="#c9a84c" distance={15} decay={2} />
-      <pointLight position={[-3, -2, 3]} intensity={0.4} color="#4a7c59" distance={12} decay={2} />
-      <pointLight position={[4, 1, -3]} intensity={0.3} color="#e4dcc8" distance={10} decay={2} />
+      <ambientLight intensity={0.08} />
+      <pointLight position={[0, 3, 5]} intensity={1.2} color="#c9a84c" distance={18} decay={2} />
+      <pointLight position={[-3, -2, 3]} intensity={0.8} color="#4a7c59" distance={15} decay={2} />
+      <pointLight position={[4, 1, -3]} intensity={0.5} color="#e4dcc8" distance={12} decay={2} />
     </>
   );
 }
