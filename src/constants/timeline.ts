@@ -22,21 +22,21 @@ export const SCENES = {
 /* ── Transition zones (between scenes) ────────────────────────── */
 
 export const TRANSITIONS = {
-  I_II:     { start: 0.19, end: 0.21, at: 0.20 },
-  II_III:   { start: 0.36, end: 0.38, at: 0.37 },
-  III_IV:   { start: 0.53, end: 0.55, at: 0.54 },
-  IV_V:     { start: 0.70, end: 0.72, at: 0.71 },
-  V_OUTRO:  { start: 0.87, end: 0.89, at: 0.88 },
+  I_II:     { start: 0.18, end: 0.22, at: 0.20 },
+  II_III:   { start: 0.35, end: 0.39, at: 0.37 },
+  III_IV:   { start: 0.52, end: 0.56, at: 0.54 },
+  IV_V:     { start: 0.69, end: 0.73, at: 0.71 },
+  V_OUTRO:  { start: 0.86, end: 0.90, at: 0.88 },
 } as const;
 
 /* ── Scene group mount/unmount windows (with overlap for crossfade) ─ */
 
 export const SCENE_GROUPS = {
-  EMBER:        { mount: 0.00, unmount: 0.22 },
-  GROWTH:       { mount: 0.19, unmount: 0.39 },
-  TESSELLATION: { mount: 0.34, unmount: 0.56 },
-  HELIX:        { mount: 0.51, unmount: 0.76 },
-  ATTRACTOR:    { mount: 0.68, unmount: Infinity },
+  EMBER:        { mount: 0.00, unmount: 0.24 },
+  GROWTH:       { mount: 0.17, unmount: 0.41 },
+  TESSELLATION: { mount: 0.33, unmount: 0.58 },
+  HELIX:        { mount: 0.50, unmount: 0.76 },
+  ATTRACTOR:    { mount: 0.67, unmount: Infinity },
 } as const;
 
 /* ── Text overlay windows ─────────────────────────────────────── */
@@ -66,9 +66,9 @@ export const TEXT_FADE = {
 /* ── Camera lerp speeds ───────────────────────────────────────── */
 
 export const CAMERA_LERP = {
-  TITLE: 0.015,
-  SCENE: 0.06,
-  TRANSITION: 0.10,
+  TITLE: 0.03,
+  SCENE: 0.10,
+  TRANSITION: 0.08,
 } as const;
 
 /* ── Audio scene config ───────────────────────────────────────── */

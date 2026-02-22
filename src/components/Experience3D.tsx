@@ -51,6 +51,36 @@ function MorphCamera({ progress, isMobile }: { progress: number; isMobile: boole
   const zPull = isMobile ? 2.0 : 0;
   const xScale = isMobile ? 0.5 : 1;
 
+  // Pre-compute scene endpoint positions for seamless transitions
+  const getScenePos = (scene: string, t: number): [THREE.Vector3, THREE.Vector3] => {
+    switch (scene) {
+      case 'TITLE': {
+        const heroP = t;
+        return [new THREE.Vector3(0, 0, 8 + zPull - heroP * 2), new THREE.Vector3(0, 0, 0)];
+      }
+      case 'I': {
+        const angle = t * Math.PI * 0.3;
+        return [new THREE.Vector3(Math.sin(angle) * 4 * xScale, 0.3 + t * 0.3, Math.cos(angle) * 4 + zPull), new THREE.Vector3(0, 0, 0)];
+      }
+      case 'II':
+        return [new THREE.Vector3(Math.sin(t * Math.PI * 0.4) * 4 * xScale, 2 + t * 4, 8 + zPull), new THREE.Vector3(0, 2 + t * 3, 0)];
+      case 'III': {
+        const angle = t * Math.PI * 0.4;
+        return [new THREE.Vector3(Math.sin(angle) * 2 * xScale, Math.sin(t * Math.PI) * 1, 10 + zPull), new THREE.Vector3(0, 0, 0)];
+      }
+      case 'IV': {
+        const angle = t * Math.PI * 0.5;
+        return [new THREE.Vector3(Math.sin(angle) * 14 * xScale, -1 + t * 3, Math.cos(angle) * 14 + zPull), new THREE.Vector3(0, 2, 0)];
+      }
+      case 'V': {
+        const angle = t * Math.PI * 0.6;
+        return [new THREE.Vector3(Math.sin(angle) * 7 * xScale, 1 + Math.sin(t * Math.PI * 0.5) * 2, Math.cos(angle) * 7 + zPull), new THREE.Vector3(0, 0, 0)];
+      }
+      default:
+        return [new THREE.Vector3(0, 1, 8 + zPull), new THREE.Vector3(0, 0, 0)];
+    }
+  };
+
   useFrame(() => {
     let pos: THREE.Vector3;
     let lookAt: THREE.Vector3;
@@ -59,74 +89,64 @@ function MorphCamera({ progress, isMobile }: { progress: number; isMobile: boole
     const T = TRANSITIONS;
 
     if (progress < S.TITLE.end) {
-      // Hero / Title phase
-      const heroP = progress / S.TITLE.end;
-      // Slow dolly forward through the dissolving hero plane
-      pos = new THREE.Vector3(0, 0, 8 + zPull - heroP * 2);
-      lookAt = new THREE.Vector3(0, 0, 0);
-    } else if (progress < S.I.end) {
-      // Scene I: close orbit around seed
-      const dur = S.I.end - S.I.start;
-      const t = (progress - S.I.start) / dur;
-      const angle = t * Math.PI * 0.3;
-      pos = new THREE.Vector3(Math.sin(angle) * 4 * xScale, 0.3 + t * 0.3, Math.cos(angle) * 4 + zPull);
-      lookAt = new THREE.Vector3(0, 0, 0);
+      [pos, lookAt] = getScenePos('TITLE', progress / S.TITLE.end);
+    } else if (progress < T.I_II.start) {
+      const t = (progress - S.I.start) / (S.I.end - S.I.start);
+      [pos, lookAt] = getScenePos('I', Math.min(t, 1));
     } else if (progress < T.I_II.end) {
-      // Transition I->II: pull back to see growth
+      // Transition I->II: blend from Scene I end to Scene II start
       const t = (progress - T.I_II.start) / (T.I_II.end - T.I_II.start);
       const e = t * t * (3 - 2 * t);
-      pos = new THREE.Vector3(e * 2 * xScale, 0.5 * (1 - e) + 2 * e, 4 * (1 - e) + 8 * e + zPull);
-      lookAt = new THREE.Vector3(0, e * 2, 0);
-    } else if (progress < S.II.end) {
-      // Scene II: medium distance, rising with growth
-      const dur = S.II.end - S.II.start;
-      const t = (progress - S.II.start) / dur;
-      pos = new THREE.Vector3(Math.sin(t * Math.PI * 0.4) * 4 * xScale, 2 + t * 4, 8 + zPull);
-      lookAt = new THREE.Vector3(0, 2 + t * 3, 0);
+      const [fromPos, fromLook] = getScenePos('I', 1);
+      const [toPos, toLook] = getScenePos('II', 0);
+      pos = fromPos.clone().lerp(toPos, e);
+      lookAt = fromLook.clone().lerp(toLook, e);
+    } else if (progress < T.II_III.start) {
+      const t = (progress - S.II.start) / (S.II.end - S.II.start);
+      [pos, lookAt] = getScenePos('II', Math.min(t, 1));
     } else if (progress < T.II_III.end) {
       // Transition II->III
       const t = (progress - T.II_III.start) / (T.II_III.end - T.II_III.start);
       const e = t * t * (3 - 2 * t);
-      pos = new THREE.Vector3(2 * (1 - e) * xScale, 6 * (1 - e) + 1 * e, 8 * (1 - e) + 10 * e + zPull);
-      lookAt = new THREE.Vector3(0, 5 * (1 - e), 0);
-    } else if (progress < S.III.end) {
-      // Scene III: face-on, slight orbit
-      const dur = S.III.end - S.III.start;
-      const t = (progress - S.III.start) / dur;
-      const angle = t * Math.PI * 0.4;
-      pos = new THREE.Vector3(Math.sin(angle) * 2 * xScale, Math.sin(t * Math.PI) * 1, 10 + zPull);
-      lookAt = new THREE.Vector3(0, 0, 0);
+      const [fromPos, fromLook] = getScenePos('II', 1);
+      const [toPos, toLook] = getScenePos('III', 0);
+      pos = fromPos.clone().lerp(toPos, e);
+      lookAt = fromLook.clone().lerp(toLook, e);
+    } else if (progress < T.III_IV.start) {
+      const t = (progress - S.III.start) / (S.III.end - S.III.start);
+      [pos, lookAt] = getScenePos('III', Math.min(t, 1));
     } else if (progress < T.III_IV.end) {
-      // Transition III->IV: sweep to low angle for helix
+      // Transition III->IV
       const t = (progress - T.III_IV.start) / (T.III_IV.end - T.III_IV.start);
       const e = t * t * (3 - 2 * t);
-      pos = new THREE.Vector3(e * 5 * xScale, 1 * (1 - e) + (-1) * e, 10 * (1 - e) + 14 * e + zPull);
-      lookAt = new THREE.Vector3(0, e * 1, 0);
-    } else if (progress < S.IV.end) {
-      // Scene IV: wide orbit, assembling helix
-      const dur = S.IV.end - S.IV.start;
-      const t = (progress - S.IV.start) / dur;
-      const angle = t * Math.PI * 0.5;
-      pos = new THREE.Vector3(Math.sin(angle) * 14 * xScale, -1 + t * 3, Math.cos(angle) * 14 + zPull);
-      lookAt = new THREE.Vector3(0, 2, 0);
+      const [fromPos, fromLook] = getScenePos('III', 1);
+      const [toPos, toLook] = getScenePos('IV', 0);
+      pos = fromPos.clone().lerp(toPos, e);
+      lookAt = fromLook.clone().lerp(toLook, e);
+    } else if (progress < T.IV_V.start) {
+      const t = (progress - S.IV.start) / (S.IV.end - S.IV.start);
+      [pos, lookAt] = getScenePos('IV', Math.min(t, 1));
     } else if (progress < T.IV_V.end) {
       // Transition IV->V
       const t = (progress - T.IV_V.start) / (T.IV_V.end - T.IV_V.start);
       const e = t * t * (3 - 2 * t);
-      pos = new THREE.Vector3(6 * (1 - e) * xScale, 2 * (1 - e) + 1 * e, 14 * (1 - e) + 8 * e + zPull);
-      lookAt = new THREE.Vector3(0, 2 * (1 - e), 0);
+      const [fromPos, fromLook] = getScenePos('IV', 1);
+      const [toPos, toLook] = getScenePos('V', 0);
+      pos = fromPos.clone().lerp(toPos, e);
+      lookAt = fromLook.clone().lerp(toLook, e);
     } else if (progress < S.V.end) {
-      // Scene V: orbit the attractor
-      const dur = S.V.end - S.V.start;
-      const t = (progress - S.V.start) / dur;
-      const angle = t * Math.PI * 0.6;
-      pos = new THREE.Vector3(Math.sin(angle) * 7 * xScale, 1 + Math.sin(t * Math.PI * 0.5) * 2, Math.cos(angle) * 7 + zPull);
-      lookAt = new THREE.Vector3(0, 0, 0);
+      const t = (progress - S.V.start) / (S.V.end - S.V.start);
+      [pos, lookAt] = getScenePos('V', Math.min(t, 1));
     } else {
-      // Outro
+      // Outro: drift upward from Scene V end
       const dur = S.OUTRO.end - S.OUTRO.start;
-      const t = (progress - S.OUTRO.start) / dur;
-      pos = new THREE.Vector3(Math.sin(t * 0.3) * 2 * xScale, 1 + t * 6, 8 + t * 5 + zPull);
+      const t = Math.min((progress - S.OUTRO.start) / dur, 1);
+      const [fromPos] = getScenePos('V', 1);
+      pos = new THREE.Vector3(
+        fromPos.x + Math.sin(t * 0.3) * 2 * xScale,
+        fromPos.y + t * 6,
+        fromPos.z + t * 5
+      );
       lookAt = new THREE.Vector3(0, -1, 0);
     }
 
