@@ -4,26 +4,27 @@
  *
  * Timeline (normalized 0-1):
  *   0.00-0.03  Title
- *   0.03-0.18  I.   The Silence (ember in darkness)
+ *   0.03-0.18  I.   The Silence (buried seed)
  *   0.18-0.20  Transition I->II
- *   0.20-0.35  II.  The Proliferation (L-System tree)
+ *   0.20-0.35  II.  The Proliferation (erupting growth)
  *   0.35-0.37  Transition II->III
- *   0.37-0.52  III. The Search (Voronoi tessellation)
+ *   0.37-0.52  III. The Search (shifting polyhedra)
  *   0.52-0.54  Transition III->IV
- *   0.54-0.69  IV.  The Convergence (DNA Helix)
+ *   0.54-0.69  IV.  The Convergence (assembling architecture)
  *   0.69-0.71  Transition IV->V
- *   0.71-0.86  V.   The Spark (Lorenz Attractor)
+ *   0.71-0.86  V.   The Spark (ignition bloom)
  *   0.86-1.00  Outro
  */
 
 import { useRef, useMemo } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { EmberCore, DustMotes, EmberLighting } from "./EmberScene";
+import { EmberCore, DustMotes, GroundPlane, EmberLighting } from "./EmberScene";
 import { TreeBranches, BranchParticles, LeafBuds, GrowthLighting } from "./GrowthScene";
 import { VoronoiCells, TessellationLighting } from "./TessellationScene";
 import { HelixStrands, HelixRungs, HelixLighting } from "./HelixScene";
-import { AttractorPath, SparkParticles, AttractorGlow, AttractorLighting } from "./AttractorScene";
+import { AttractorPath, SparkParticles, CentralStar, RadialRays, AttractorGlow, AttractorLighting } from "./AttractorScene";
+import { PostEffects } from "./PostEffects";
 
 interface SceneProps {
   progress: number;
@@ -55,78 +56,76 @@ function MorphCamera({ progress, isMobile }: { progress: number; isMobile: boole
   const currentPos = useRef(new THREE.Vector3(0, 0.5, 10));
   const currentLookAt = useRef(new THREE.Vector3(0, 0, 0));
 
-  const zPull = isMobile ? 4.0 : 0;
-  const xScale = isMobile ? 0.35 : 1;
+  const zPull = isMobile ? 2.0 : 0;
+  const xScale = isMobile ? 0.5 : 1;
 
   useFrame(() => {
     let pos: THREE.Vector3;
     let lookAt: THREE.Vector3;
 
     if (progress < 0.03) {
-      // Title: close, centered
       pos = new THREE.Vector3(0, 0, 8 + zPull);
       lookAt = new THREE.Vector3(0, 0, 0);
     } else if (progress < 0.18) {
-      // Scene I: The Silence -- slow orbit around ember
+      // Scene I: close orbit around seed
       const t = (progress - 0.03) / 0.15;
       const angle = t * Math.PI * 0.3;
-      pos = new THREE.Vector3(Math.sin(angle) * 6 * xScale, 0.5 + t * 0.5, Math.cos(angle) * 6 + zPull);
+      pos = new THREE.Vector3(Math.sin(angle) * 4 * xScale, 0.3 + t * 0.3, Math.cos(angle) * 4 + zPull);
       lookAt = new THREE.Vector3(0, 0, 0);
     } else if (progress < 0.20) {
-      // Transition I->II
+      // Transition I->II: pull back to see growth
       const t = (progress - 0.18) / 0.02;
       const e = t * t * (3 - 2 * t);
-      pos = new THREE.Vector3(e * 1 * xScale, 0.5 + e * 2, 6 * (1 - e) + 8 * e + zPull);
-      lookAt = new THREE.Vector3(0, -1 * e, 0);
+      pos = new THREE.Vector3(e * 2 * xScale, 0.5 * (1 - e) + 2 * e, 4 * (1 - e) + 8 * e + zPull);
+      lookAt = new THREE.Vector3(0, e * 2, 0);
     } else if (progress < 0.35) {
-      // Scene II: The Proliferation -- rise up with tree
+      // Scene II: medium distance, centered on tendril mass, rising with growth
       const t = (progress - 0.20) / 0.15;
-      pos = new THREE.Vector3(Math.sin(t * Math.PI * 0.3) * 4 * xScale, -1 + t * 5, 7 + zPull);
-      lookAt = new THREE.Vector3(0, -1 + t * 2, 0);
+      pos = new THREE.Vector3(Math.sin(t * Math.PI * 0.4) * 4 * xScale, 2 + t * 4, 8 + zPull);
+      lookAt = new THREE.Vector3(0, 2 + t * 3, 0);
     } else if (progress < 0.37) {
       // Transition II->III
       const t = (progress - 0.35) / 0.02;
       const e = t * t * (3 - 2 * t);
-      pos = new THREE.Vector3(2 * (1 - e) * xScale, 4 * (1 - e) + 1 * e, 7 * (1 - e) + 10 * e + zPull);
-      lookAt = new THREE.Vector3(0, 0, 0);
+      pos = new THREE.Vector3(2 * (1 - e) * xScale, 6 * (1 - e) + 1 * e, 8 * (1 - e) + 10 * e + zPull);
+      lookAt = new THREE.Vector3(0, 5 * (1 - e), 0);
     } else if (progress < 0.52) {
-      // Scene III: The Search -- face-on, slight orbit
+      // Scene III: face-on, slight orbit
       const t = (progress - 0.37) / 0.15;
       const angle = t * Math.PI * 0.4;
       pos = new THREE.Vector3(Math.sin(angle) * 2 * xScale, Math.sin(t * Math.PI) * 1, 10 + zPull);
       lookAt = new THREE.Vector3(0, 0, 0);
     } else if (progress < 0.54) {
-      // Transition III->IV
+      // Transition III->IV: sweep to low angle for helix
       const t = (progress - 0.52) / 0.02;
       const e = t * t * (3 - 2 * t);
-      pos = new THREE.Vector3(e * 3 * xScale, 1 * (1 - e) + 2 * e, 10 * (1 - e) + 8 * e + zPull);
-      lookAt = new THREE.Vector3(0, 0, 0);
+      pos = new THREE.Vector3(e * 5 * xScale, 1 * (1 - e) + (-1) * e, 10 * (1 - e) + 14 * e + zPull);
+      lookAt = new THREE.Vector3(0, e * 1, 0);
     } else if (progress < 0.69) {
-      // Scene IV: The Convergence -- side view of helix
+      // Scene IV: wide orbit, looking at assembling helix (radius 14, eye-level)
       const t = (progress - 0.54) / 0.15;
       const angle = t * Math.PI * 0.5;
-      pos = new THREE.Vector3(Math.sin(angle) * 6 * xScale, 2 + Math.sin(t * Math.PI) * 2, Math.cos(angle) * 6 + zPull);
-      lookAt = new THREE.Vector3(0, 0, 0);
+      pos = new THREE.Vector3(Math.sin(angle) * 14 * xScale, -1 + t * 3, Math.cos(angle) * 14 + zPull);
+      lookAt = new THREE.Vector3(0, 2, 0);
     } else if (progress < 0.71) {
       // Transition IV->V
       const t = (progress - 0.69) / 0.02;
       const e = t * t * (3 - 2 * t);
-      pos = new THREE.Vector3(3 * (1 - e) * xScale, 4 * (1 - e) + 1 * e, 6 * (1 - e) + 8 * e + zPull);
-      lookAt = new THREE.Vector3(0, 0, 0);
+      pos = new THREE.Vector3(6 * (1 - e) * xScale, 2 * (1 - e) + 1 * e, 14 * (1 - e) + 8 * e + zPull);
+      lookAt = new THREE.Vector3(0, 2 * (1 - e), 0);
     } else if (progress < 0.86) {
-      // Scene V: The Spark -- orbit the attractor
+      // Scene V: orbit the attractor
       const t = (progress - 0.71) / 0.15;
       const angle = t * Math.PI * 0.6;
       pos = new THREE.Vector3(Math.sin(angle) * 7 * xScale, 1 + Math.sin(t * Math.PI * 0.5) * 2, Math.cos(angle) * 7 + zPull);
       lookAt = new THREE.Vector3(0, 0, 0);
     } else {
-      // Outro -- pull away
       const t = (progress - 0.86) / 0.14;
       pos = new THREE.Vector3(Math.sin(t * 0.3) * 2 * xScale, 1 + t * 6, 8 + t * 5 + zPull);
       lookAt = new THREE.Vector3(0, -1, 0);
     }
 
-    const lerpSpeed = progress < 0.03 ? 0.015 : 0.035;
+    const lerpSpeed = progress < 0.03 ? 0.015 : 0.06;
     currentPos.current.lerp(pos, lerpSpeed);
     currentLookAt.current.lerp(lookAt, lerpSpeed);
     camera.position.copy(currentPos.current);
@@ -139,24 +138,23 @@ function MorphCamera({ progress, isMobile }: { progress: number; isMobile: boole
 /* === SCENE GROUPS === */
 
 function EmberGroup({ progress, isMobile }: { progress: number; isMobile: boolean }) {
-  const ref = useRef<THREE.Group>(null);
-  // Always visible -- scene itself handles internal opacity; we just kill it after transition
-  const active = progress < 0.24;
+  const active = progress < 0.21;
   if (!active) return null;
   return (
-    <group ref={ref}>
+    <group>
       <EmberLighting />
       <EmberCore progress={progress} />
       <DustMotes progress={progress} isMobile={isMobile} />
+      <GroundPlane />
     </group>
   );
 }
 
 function GrowthGroup({ progress, isMobile }: { progress: number; isMobile: boolean }) {
-  const active = progress > 0.16 && progress < 0.41;
+  const active = progress > 0.18 && progress < 0.38;
   if (!active) return null;
   return (
-    <group>
+    <group scale={1.8}>
       <GrowthLighting />
       <TreeBranches progress={progress} isMobile={isMobile} />
       <BranchParticles progress={progress} isMobile={isMobile} />
@@ -166,7 +164,7 @@ function GrowthGroup({ progress, isMobile }: { progress: number; isMobile: boole
 }
 
 function TessellationGroup({ progress, isMobile }: { progress: number; isMobile: boolean }) {
-  const active = progress > 0.33 && progress < 0.58;
+  const active = progress > 0.33 && progress < 0.55;
   if (!active) return null;
   return (
     <group>
@@ -193,9 +191,11 @@ function AttractorGroup({ progress, isMobile }: { progress: number; isMobile: bo
   if (!active) return null;
   return (
     <group>
-      <AttractorLighting />
+      <AttractorLighting progress={progress} />
       <AttractorPath progress={progress} isMobile={isMobile} />
       <SparkParticles progress={progress} isMobile={isMobile} />
+      <CentralStar progress={progress} />
+      <RadialRays progress={progress} />
       <AttractorGlow progress={progress} />
     </group>
   );
@@ -208,14 +208,17 @@ function AmbientParticles({ isMobile }: { isMobile: boolean }) {
   const meshRef = useRef<THREE.Points>(null);
   const timeRef = useRef(0);
 
-  const positions = useMemo(() => {
+  const { positions, basePositions } = useMemo(() => {
     const p = new Float32Array(count * 3);
+    const base = new Float32Array(count * 3);
     for (let i = 0; i < count; i++) {
-      p[i * 3] = (Math.random() - 0.5) * 30;
-      p[i * 3 + 1] = (Math.random() - 0.5) * 20;
-      p[i * 3 + 2] = (Math.random() - 0.5) * 30;
+      const x = (Math.random() - 0.5) * 30;
+      const y = (Math.random() - 0.5) * 20;
+      const z = (Math.random() - 0.5) * 30;
+      p[i * 3] = x; p[i * 3 + 1] = y; p[i * 3 + 2] = z;
+      base[i * 3] = x; base[i * 3 + 1] = y; base[i * 3 + 2] = z;
     }
-    return p;
+    return { positions: p, basePositions: base };
   }, [count]);
 
   useFrame((_, delta) => {
@@ -225,8 +228,9 @@ function AmbientParticles({ isMobile }: { isMobile: boolean }) {
     const posAttr = meshRef.current.geometry.attributes.position as THREE.BufferAttribute;
     const arr = posAttr.array as Float32Array;
     for (let i = 0; i < count; i++) {
-      arr[i * 3 + 1] += Math.sin(t * 0.2 + i * 0.5) * 0.001;
-      arr[i * 3] += Math.cos(t * 0.15 + i * 0.3) * 0.0005;
+      arr[i * 3] = basePositions[i * 3] + Math.cos(t * 0.15 + i * 0.3) * 0.3;
+      arr[i * 3 + 1] = basePositions[i * 3 + 1] + Math.sin(t * 0.2 + i * 0.5) * 0.5;
+      arr[i * 3 + 2] = basePositions[i * 3 + 2] + Math.sin(t * 0.1 + i * 0.7) * 0.2;
     }
     posAttr.needsUpdate = true;
   });
@@ -253,11 +257,12 @@ export default function Experience3D({ progress, isMobile = false }: SceneProps)
       <Canvas
         camera={{ position: [0, 0.5, 10], fov: isMobile ? 65 : 50, near: 0.1, far: 100 }}
         dpr={isMobile ? [1, 1.5] : [1, 2]}
+        shadows={progress > 0.50 && progress < 0.75}
         gl={{ antialias: !isMobile, powerPreference: isMobile ? "low-power" : "default", toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 0.9 }}
         style={{ pointerEvents: "none" }}
       >
         <color attach="background" args={["#0a0d08"]} />
-        <fog attach="fog" args={["#0a0d08", isMobile ? 12 : 10, isMobile ? 35 : 30]} />
+        <fog attach="fog" args={["#0a0d08", isMobile ? 14 : 12, isMobile ? 40 : 35]} />
 
         <MorphCamera progress={progress} isMobile={isMobile} />
 
@@ -268,6 +273,8 @@ export default function Experience3D({ progress, isMobile = false }: SceneProps)
         <AttractorGroup progress={progress} isMobile={isMobile} />
 
         <AmbientParticles isMobile={isMobile} />
+
+        <PostEffects progress={progress} />
       </Canvas>
     </div>
   );

@@ -9,7 +9,7 @@
 import { Suspense } from "react";
 import { useScrollProgress } from "@/hooks/useScrollProgress";
 import { useMobileDetect } from "@/hooks/useMobileDetect";
-import { useOrganicAudio } from "@/hooks/useOrganicAudio";
+import { useSceneAudio } from "@/hooks/useSceneAudio";
 import { useMobileScroll } from "@/hooks/useMobileScroll";
 import Experience3D from "@/components/Experience3D";
 import TextOverlay from "@/components/TextOverlay";
@@ -28,7 +28,7 @@ function LoadingScreen() {
 export default function Home() {
   const progress = useScrollProgress();
   const device = useMobileDetect();
-  const { isPlaying, toggleAudio } = useOrganicAudio(progress);
+  const { isPlaying, toggleAudio } = useSceneAudio(progress);
 
   useMobileScroll({
     sensitivity: device.isMobile ? 4.5 : 2.5,

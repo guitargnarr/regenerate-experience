@@ -10,7 +10,6 @@ interface MobileScrollConfig {
 export function useMobileScroll(config: MobileScrollConfig = {}) {
   const { sensitivity = 2.5, friction = 0.92, momentumThreshold = 0.3, maxVelocity = 8 } = config;
 
-  const touchStartY = useRef(0);
   const touchLastY = useRef(0);
   const touchLastTime = useRef(0);
   const velocity = useRef(0);
@@ -47,7 +46,6 @@ export function useMobileScroll(config: MobileScrollConfig = {}) {
       isTouching.current = true;
       cancelMomentum();
       const touch = e.touches[0];
-      touchStartY.current = touch.clientY;
       touchLastY.current = touch.clientY;
       touchLastTime.current = performance.now();
       velocity.current = 0;

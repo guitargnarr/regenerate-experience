@@ -1,100 +1,262 @@
 /**
- * Scene I: The Silence (0.03-0.18)
- * A single ember in vast darkness. Dust motes drift around it.
- * The ember pulses, draws particles closer, then dims. The anti-formation.
+ * Scene I: The Silence (0.03-0.18) -- "Buried Seed"
+ * A single organic seed form in a dark void. Narrow spotlight from above.
+ * The seed breathes, then cracks open revealing inner gold glow.
+ * Custom ShaderMaterial with subsurface scattering approximation.
  */
 
 import { useRef, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 
+/* ---- Seed vertex shader ---- */
+const seedVertexShader = /* glsl */ `
+  uniform float uTime;
+  uniform float uCrack;
+  uniform float uBreathe;
+
+  varying vec3 vNormal;
+  varying vec3 vWorldPos;
+  varying vec3 vViewDir;
+  varying float vDisplacement;
+
+  // Simple 3D noise (hash-based)
+  float hash(vec3 p) {
+    p = fract(p * vec3(443.897, 441.423, 437.195));
+    p += dot(p, p.yzx + 19.19);
+    return fract((p.x + p.y) * p.z);
+  }
+
+  float noise3D(vec3 p) {
+    vec3 i = floor(p);
+    vec3 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    float a = hash(i);
+    float b = hash(i + vec3(1,0,0));
+    float c = hash(i + vec3(0,1,0));
+    float d = hash(i + vec3(1,1,0));
+    float e = hash(i + vec3(0,0,1));
+    float ff = hash(i + vec3(1,0,1));
+    float g = hash(i + vec3(0,1,1));
+    float h = hash(i + vec3(1,1,1));
+    return mix(mix(mix(a,b,f.x), mix(c,d,f.x), f.y),
+               mix(mix(e,ff,f.x), mix(g,h,f.x), f.y), f.z);
+  }
+
+  void main() {
+    vec3 pos = position;
+    vec3 norm = normal;
+
+    // Breathing displacement
+    float breatheDisp = sin(uTime * 0.8 + pos.y * 2.0) * 0.04 * uBreathe;
+    pos += norm * breatheDisp;
+
+    // Organic surface noise
+    float surfNoise = noise3D(pos * 3.0 + uTime * 0.1) * 0.08;
+    pos += norm * surfNoise;
+
+    // Crack displacement -- vertices pull apart based on noise pattern
+    float crackPattern = noise3D(pos * 4.0 + vec3(0.0, uTime * 0.05, 0.0));
+    float crackMask = smoothstep(0.45, 0.55, crackPattern);
+    float crackDisp = crackMask * uCrack * 0.4;
+    pos += norm * crackDisp;
+
+    vDisplacement = crackDisp;
+    vNormal = normalize(normalMatrix * norm);
+    vec4 worldPos = modelMatrix * vec4(pos, 1.0);
+    vWorldPos = worldPos.xyz;
+    vViewDir = normalize(cameraPosition - worldPos.xyz);
+
+    gl_Position = projectionMatrix * viewMatrix * worldPos;
+  }
+`;
+
+/* ---- Seed fragment shader ---- */
+const seedFragmentShader = /* glsl */ `
+  uniform float uTime;
+  uniform float uCrack;
+  uniform float uInnerGlow;
+  uniform vec3 uMossColor;
+  uniform vec3 uGoldColor;
+
+  varying vec3 vNormal;
+  varying vec3 vWorldPos;
+  varying vec3 vViewDir;
+  varying float vDisplacement;
+
+  void main() {
+    vec3 N = normalize(vNormal);
+    vec3 V = normalize(vViewDir);
+
+    // Light from above (moonlight through soil)
+    vec3 lightDir = normalize(vec3(0.1, 1.0, 0.3));
+    float NdotL = max(dot(N, lightDir), 0.0);
+
+    // Subsurface scattering approximation: light wraps around edges
+    float wrap = max(0.0, dot(N, lightDir) * 0.5 + 0.5);
+    float sss = pow(wrap, 2.0) * 0.6;
+
+    // Fresnel rim glow in moss-green
+    float fresnel = pow(1.0 - max(dot(N, V), 0.0), 3.0);
+    vec3 rimColor = uMossColor * fresnel * 0.8;
+
+    // Organic surface -- slightly brighter for visibility
+    vec3 baseColor = vec3(0.08, 0.10, 0.07);
+    vec3 diffuse = baseColor * (NdotL * 0.5 + 0.15);
+    vec3 sssColor = uMossColor * sss * 0.4;
+
+    // Inner gold emission through cracks
+    float innerEmission = vDisplacement * uInnerGlow * 12.0;
+    vec3 innerColor = uGoldColor * innerEmission;
+
+    // Increasing gold glow before cracks fully open
+    float preGlow = uInnerGlow * 0.5 * (1.0 - uCrack);
+    vec3 preGlowColor = uGoldColor * preGlow * (0.5 + 0.5 * sin(uTime * 1.5));
+
+    vec3 color = diffuse + sssColor + rimColor + innerColor + preGlowColor;
+
+    // Overall scene fade
+    float alpha = 0.95;
+
+    gl_FragColor = vec4(color, alpha);
+  }
+`;
+
+/* ---- Ground plane vertex shader ---- */
+const groundVertexShader = /* glsl */ `
+  uniform float uTime;
+
+  varying vec2 vUv;
+  varying float vDisp;
+
+  float hash(vec3 p) {
+    p = fract(p * vec3(443.897, 441.423, 437.195));
+    p += dot(p, p.yzx + 19.19);
+    return fract((p.x + p.y) * p.z);
+  }
+
+  float noise3D(vec3 p) {
+    vec3 i = floor(p);
+    vec3 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    float a = hash(i);
+    float b = hash(i + vec3(1,0,0));
+    float c = hash(i + vec3(0,1,0));
+    float d = hash(i + vec3(1,1,0));
+    float e = hash(i + vec3(0,0,1));
+    float ff = hash(i + vec3(1,0,1));
+    float g = hash(i + vec3(0,1,1));
+    float h = hash(i + vec3(1,1,1));
+    return mix(mix(mix(a,b,f.x), mix(c,d,f.x), f.y),
+               mix(mix(e,ff,f.x), mix(g,h,f.x), f.y), f.z);
+  }
+
+  void main() {
+    vUv = uv;
+    vec3 pos = position;
+
+    // Simplex-like displacement for soil texture
+    float n = noise3D(vec3(pos.x * 0.5, pos.z * 0.5, uTime * 0.02)) * 0.3;
+    n += noise3D(vec3(pos.x * 1.5, pos.z * 1.5, uTime * 0.01)) * 0.1;
+    pos.y += n;
+    vDisp = n;
+
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+  }
+`;
+
+/* ---- Ground plane fragment shader ---- */
+const groundFragmentShader = /* glsl */ `
+  varying vec2 vUv;
+  varying float vDisp;
+
+  void main() {
+    // Dark soil, brighter near center under spotlight
+    float dist = length(vUv - 0.5);
+    float falloff = 1.0 - smoothstep(0.0, 0.5, dist);
+    vec3 soil = vec3(0.06, 0.07, 0.04) + falloff * vec3(0.04, 0.05, 0.03);
+    soil += vDisp * vec3(0.04, 0.06, 0.03);
+
+    float alpha = (1.0 - smoothstep(0.3, 0.5, dist)) * 0.85;
+    gl_FragColor = vec4(soil, alpha);
+  }
+`;
+
+/* ---- Exported components ---- */
+
 export function EmberCore({ progress }: { progress: number }) {
   const meshRef = useRef<THREE.Mesh>(null);
-  const glowRef = useRef<THREE.Mesh>(null);
   const timeRef = useRef(0);
+
+  const uniforms = useMemo(() => ({
+    uTime: { value: 0 },
+    uCrack: { value: 0 },
+    uBreathe: { value: 1.0 },
+    uInnerGlow: { value: 0 },
+    uMossColor: { value: new THREE.Color(0x4a7c59) },
+    uGoldColor: { value: new THREE.Color(0xc9a84c) },
+  }), []);
 
   useFrame((_, delta) => {
     if (!meshRef.current) return;
     timeRef.current += delta;
-    const t = timeRef.current;
     const sceneP = Math.max(0, Math.min(1, (progress - 0.03) / 0.15));
 
-    const pulse = Math.sin(t * 0.8) * 0.5 + 0.5;
-    const breathe = Math.sin(t * 0.3) * 0.3 + 0.7;
-    const intensity = pulse * breathe * (0.5 + sceneP * 0.5);
+    uniforms.uTime.value = timeRef.current;
 
-    const mat = meshRef.current.material as THREE.MeshStandardMaterial;
-    mat.emissiveIntensity = intensity * 4;
-    mat.opacity = 0.6 + intensity * 0.4;
-
-    const scale = 0.25 + intensity * 0.15;
-    meshRef.current.scale.setScalar(scale);
-
-    if (glowRef.current) {
-      const glowMat = glowRef.current.material as THREE.MeshStandardMaterial;
-      glowMat.emissiveIntensity = intensity * 1.5;
-      glowMat.opacity = intensity * 0.25;
-      glowRef.current.scale.setScalar(scale * 5 + Math.sin(t * 0.5) * 0.3);
+    // 0-0.3: barely visible dark sphere
+    // 0.3-0.6: gold inner glow increases
+    // 0.6-1.0: vertices split showing inner gold light
+    if (sceneP < 0.3) {
+      uniforms.uBreathe.value = 0.3 + sceneP * 2.3;
+      uniforms.uInnerGlow.value = sceneP * 0.3;
+      uniforms.uCrack.value = 0;
+    } else if (sceneP < 0.6) {
+      const t = (sceneP - 0.3) / 0.3;
+      uniforms.uBreathe.value = 1.0;
+      uniforms.uInnerGlow.value = 0.1 + t * 0.6;
+      uniforms.uCrack.value = t * 0.2;
+    } else {
+      const t = (sceneP - 0.6) / 0.4;
+      uniforms.uBreathe.value = 1.0 - t * 0.3;
+      uniforms.uInnerGlow.value = 0.7 + t * 0.3;
+      uniforms.uCrack.value = 0.2 + t * 0.8;
     }
+
+    // Gentle float
+    meshRef.current.position.y = Math.sin(timeRef.current * 0.3) * 0.1;
+    meshRef.current.rotation.y = timeRef.current * 0.05;
   });
 
   return (
-    <>
-      <mesh ref={meshRef}>
-        <sphereGeometry args={[1, 32, 32]} />
-        <meshStandardMaterial
-          color="#c9a84c"
-          emissive="#c9a84c"
-          emissiveIntensity={2}
-          transparent
-          opacity={0.8}
-        />
-      </mesh>
-      <mesh ref={glowRef}>
-        <sphereGeometry args={[1, 24, 24]} />
-        <meshStandardMaterial
-          color="#0a0d08"
-          emissive="#4a7c59"
-          emissiveIntensity={1}
-          transparent
-          opacity={0.2}
-          blending={THREE.AdditiveBlending}
-          side={THREE.BackSide}
-        />
-      </mesh>
-    </>
+    <mesh ref={meshRef}>
+      <icosahedronGeometry args={[1.5, 4]} />
+      <shaderMaterial
+        vertexShader={seedVertexShader}
+        fragmentShader={seedFragmentShader}
+        uniforms={uniforms}
+        transparent
+      />
+    </mesh>
   );
 }
 
 export function DustMotes({ progress, isMobile }: { progress: number; isMobile: boolean }) {
-  const COUNT = isMobile ? 40 : 80;
+  const COUNT = isMobile ? 30 : 60;
   const meshRef = useRef<THREE.Points>(null);
   const timeRef = useRef(0);
 
-  const { positions, basePositions, velocities } = useMemo(() => {
+  const positions = useMemo(() => {
     const pos = new Float32Array(COUNT * 3);
-    const base = new Float32Array(COUNT * 3);
-    const vel = new Float32Array(COUNT * 3);
-
     for (let i = 0; i < COUNT; i++) {
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
-      const r = 1.5 + Math.random() * 5;
-
+      const r = 2 + Math.random() * 4;
       pos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
       pos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
       pos[i * 3 + 2] = r * Math.cos(phi);
-
-      base[i * 3] = pos[i * 3];
-      base[i * 3 + 1] = pos[i * 3 + 1];
-      base[i * 3 + 2] = pos[i * 3 + 2];
-
-      vel[i * 3] = (Math.random() - 0.5) * 0.02;
-      vel[i * 3 + 1] = (Math.random() - 0.5) * 0.02;
-      vel[i * 3 + 2] = (Math.random() - 0.5) * 0.02;
     }
-
-    return { positions: pos, basePositions: base, velocities: vel };
+    return pos;
   }, [COUNT]);
 
   useFrame((_, delta) => {
@@ -102,30 +264,17 @@ export function DustMotes({ progress, isMobile }: { progress: number; isMobile: 
     timeRef.current += delta;
     const t = timeRef.current;
     const sceneP = Math.max(0, Math.min(1, (progress - 0.03) / 0.15));
+
     const posAttr = meshRef.current.geometry.attributes.position as THREE.BufferAttribute;
     const arr = posAttr.array as Float32Array;
-
-    const attractPhase = Math.sin(t * 0.4) * 0.5 + 0.5;
-    const attractStrength = sceneP * attractPhase * 0.15;
-
     for (let i = 0; i < COUNT; i++) {
-      const bx = basePositions[i * 3];
-      const by = basePositions[i * 3 + 1];
-      const bz = basePositions[i * 3 + 2];
-
-      const dx = bx + Math.sin(t * 0.15 + i * 1.7) * 0.5 + velocities[i * 3] * t;
-      const dy = by + Math.cos(t * 0.12 + i * 2.3) * 0.3 + velocities[i * 3 + 1] * t;
-      const dz = bz + Math.sin(t * 0.18 + i * 0.9) * 0.4 + velocities[i * 3 + 2] * t;
-
-      arr[i * 3] = dx * (1 - attractStrength);
-      arr[i * 3 + 1] = dy * (1 - attractStrength);
-      arr[i * 3 + 2] = dz * (1 - attractStrength);
+      arr[i * 3 + 1] += Math.sin(t * 0.2 + i * 1.1) * 0.002;
+      arr[i * 3] += Math.cos(t * 0.15 + i * 0.7) * 0.001;
     }
-
     posAttr.needsUpdate = true;
 
     const mat = meshRef.current.material as THREE.PointsMaterial;
-    mat.opacity = 0.35 + sceneP * 0.4;
+    mat.opacity = sceneP * 0.35;
   });
 
   return (
@@ -134,10 +283,10 @@ export function DustMotes({ progress, isMobile }: { progress: number; isMobile: 
         <bufferAttribute attach="attributes-position" args={[positions, 3]} />
       </bufferGeometry>
       <pointsMaterial
-        size={isMobile ? 0.08 : 0.06}
-        color="#6ea87e"
+        size={isMobile ? 0.06 : 0.04}
+        color="#4a7c59"
         transparent
-        opacity={0.4}
+        opacity={0}
         blending={THREE.AdditiveBlending}
         depthWrite={false}
         sizeAttenuation
@@ -146,13 +295,44 @@ export function DustMotes({ progress, isMobile }: { progress: number; isMobile: 
   );
 }
 
+export function GroundPlane() {
+  const uniforms = useMemo(() => ({
+    uTime: { value: 0 },
+  }), []);
+
+  useFrame((_, delta) => {
+    uniforms.uTime.value += delta;
+  });
+
+  return (
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.5, 0]}>
+      <planeGeometry args={[20, 20, 64, 64]} />
+      <shaderMaterial
+        vertexShader={groundVertexShader}
+        fragmentShader={groundFragmentShader}
+        uniforms={uniforms}
+        transparent
+      />
+    </mesh>
+  );
+}
+
 export function EmberLighting() {
   return (
     <>
-      <ambientLight intensity={0.06} />
-      <pointLight position={[0, 0, 0]} intensity={2.0} color="#c9a84c" distance={15} decay={2} />
-      <pointLight position={[0, 3, 0]} intensity={0.5} color="#4a7c59" distance={12} decay={2} />
-      <pointLight position={[2, -1, 3]} intensity={0.3} color="#e2cc7a" distance={10} decay={2} />
+      <ambientLight intensity={0.05} />
+      {/* Narrow spotlight from above -- moonlight through soil */}
+      <spotLight
+        position={[0.2, 6, 0.5]}
+        angle={0.3}
+        penumbra={0.7}
+        intensity={5}
+        color="#e4dcc8"
+        distance={18}
+        decay={2}
+      />
+      <pointLight position={[0, 0, 0]} intensity={1.0} color="#c9a84c" distance={8} decay={2} />
+      <pointLight position={[0, -2, 2]} intensity={0.4} color="#4a7c59" distance={10} decay={2} />
     </>
   );
 }

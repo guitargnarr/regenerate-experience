@@ -14,16 +14,18 @@ interface TextOverlayProps {
 
 /* === Typography helpers === */
 
+const textShadow = "0 1px 4px rgba(0,0,0,0.8), 0 0 20px rgba(0,0,0,0.5)";
+
 function serif(size: string, weight: number = 400): CSSProperties {
-  return { fontFamily: '"Playfair Display", serif', fontSize: size, fontWeight: weight, lineHeight: 1.4 };
+  return { fontFamily: '"Playfair Display", serif', fontSize: size, fontWeight: weight, lineHeight: 1.4, textShadow };
 }
 
 function sans(size: string, weight: number = 300): CSSProperties {
-  return { fontFamily: '"Inter", sans-serif', fontSize: size, fontWeight: weight, lineHeight: 1.7 };
+  return { fontFamily: '"Inter", sans-serif', fontSize: size, fontWeight: weight, lineHeight: 1.7, textShadow };
 }
 
 function mono(size: string): CSSProperties {
-  return { fontFamily: '"IBM Plex Mono", monospace', fontSize: size, fontWeight: 300, lineHeight: 1.6 };
+  return { fontFamily: '"IBM Plex Mono", monospace', fontSize: size, fontWeight: 300, lineHeight: 1.6, textShadow };
 }
 
 /* === TextSection: fades in/out based on progress === */
@@ -69,6 +71,13 @@ function TextSection({ children, enterAt, exitAt, progress, style, heroMode }: {
       opacity,
       transform: `translateY(${yOffset}px)`,
       transition: "none",
+      position: "relative",
+      padding: "1.2rem 1.5rem",
+      borderRadius: "8px",
+      background: "rgba(10, 13, 8, 0.55)",
+      backdropFilter: "blur(12px)",
+      WebkitBackdropFilter: "blur(12px)",
+      boxShadow: "0 0 40px 20px rgba(10, 13, 8, 0.4)",
       ...style,
     }}>
       {children}
@@ -166,7 +175,7 @@ export default function TextOverlay({ progress, isMobile }: TextOverlayProps) {
             I. THE SILENCE
           </div>
           <div style={{ ...sans(isMobile ? "0.95rem" : "1.1rem"), color: "#e4dcc8" }}>
-            Six commits in three months.
+            Nothing visible. Nothing measurable. Just the dark and the waiting.
           </div>
         </TextSection>
 
@@ -185,7 +194,7 @@ export default function TextOverlay({ progress, isMobile }: TextOverlayProps) {
             II. THE PROLIFERATION
           </div>
           <div style={{ ...sans(isMobile ? "0.95rem" : "1.1rem"), color: "#e4dcc8" }}>
-            A music tool born from frustration. A relationship rendered as a calendar and then rendered again as a portfolio. A tool built for a child in forty-two minutes.
+            Then everything at once. Projects born from frustration, from need, from the 3 AM conviction that this thing had to exist. Most of them won't survive.
           </div>
         </TextSection>
 
@@ -201,7 +210,7 @@ export default function TextOverlay({ progress, isMobile }: TextOverlayProps) {
             III. THE SEARCH
           </div>
           <div style={{ ...sans(isMobile ? "0.95rem" : "1.1rem"), color: "#e4dcc8" }}>
-            The identities multiplied like cells dividing. Fourteen projects in two months. Each one a hypothesis about who you might be.
+            The identities multiply. Builder, designer, strategist, beginner. Each one tried on and discarded. None of them quite fit.
           </div>
         </TextSection>
 
@@ -220,7 +229,7 @@ export default function TextOverlay({ progress, isMobile }: TextOverlayProps) {
             IV. THE CONVERGENCE
           </div>
           <div style={{ ...sans(isMobile ? "0.95rem" : "1.1rem"), color: "#e4dcc8" }}>
-            Two hundred and sixty-nine commits in December. The tools started talking to each other. The websites started serving real people.
+            The scattered pieces start recognizing each other. The tool connects to the need. The skill meets the moment. Not because someone planned it.
           </div>
         </TextSection>
 
@@ -236,7 +245,7 @@ export default function TextOverlay({ progress, isMobile }: TextOverlayProps) {
             V. THE SPARK
           </div>
           <div style={{ ...sans(isMobile ? "0.95rem" : "1.1rem"), color: "#e4dcc8" }}>
-            Five hundred and thirty-eight commits in twenty-two days. An LLC formed. Clients invoiced. The scattered projects became a business.
+            And then the pattern reveals itself. What looked like disorder was a system finding its shape. What felt like wandering was navigation.
           </div>
         </TextSection>
 
@@ -249,16 +258,10 @@ export default function TextOverlay({ progress, isMobile }: TextOverlayProps) {
         {/* === OUTRO === */}
         <TextSection enterAt={0.88} exitAt={1.01} progress={progress}>
           <div style={{ ...sans(isMobile ? "0.95rem" : "1.05rem"), color: "#e4dcc8", lineHeight: 1.8, maxWidth: "540px", margin: "0 auto" }}>
-            Regeneration doesn't announce itself. It happens in the silence between commits, in the projects that fail, in the tools built for needs that change.
+            Regeneration doesn't announce itself. It happens in the silence between efforts, in the projects that fail, in the work done for reasons you can't yet name.
           </div>
           <div style={{ ...sans(isMobile ? "0.95rem" : "1.05rem"), color: "#e4dcc8", lineHeight: 1.8, maxWidth: "540px", margin: "1.5rem auto 0", }}>
-            You don't decide to reinvent yourself. You just keep building, and one day what you've built is a different person.
-          </div>
-        </TextSection>
-
-        <TextSection enterAt={0.96} exitAt={1.01} progress={progress}>
-          <div style={{ ...mono("0.7rem"), color: "#6ea87e", letterSpacing: "0.2em", marginTop: "2rem" }}>
-            Project Lavos
+            You don't decide to become something new. You just keep building, and one day what you've built is a different person.
           </div>
         </TextSection>
 

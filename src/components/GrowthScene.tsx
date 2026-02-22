@@ -1,268 +1,360 @@
 /**
- * Scene II: The Proliferation (0.20-0.35)
- * L-System tree growing chaotically. Trunk appears, branches erupt in every direction,
- * leaf buds pop at tips in rose/gold. Organic, uncontrolled growth.
+ * Scene II: The Proliferation (0.20-0.35) -- "Erupting Growth"
+ * Dense organic tendrils erupt from a central point with custom shaders.
+ * Wind-displaced tubes with moss-to-gold gradient, SSS on undersides.
+ * Glowing buds at tips. Luminous spores with size pulsing.
+ *
+ * Custom ShaderMaterial on TubeGeometry for organic feel.
+ * Growth is FAST: visible tendrils by 10% into scene, dense by 40%.
  */
 
 import { useRef, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 
-interface Branch {
-  start: THREE.Vector3;
-  end: THREE.Vector3;
-  depth: number;
-  angle: number;
-  length: number;
+function seededRandom(seed: number): () => number {
+  let s = seed;
+  return () => {
+    s = (s * 16807) % 2147483647;
+    return (s - 1) / 2147483646;
+  };
 }
 
-function generateTree(maxDepth: number): Branch[] {
-  const branches: Branch[] = [];
-  const stack: Array<{ pos: THREE.Vector3; dir: THREE.Vector3; depth: number }> = [];
+/* ---- Tendril vertex shader: wind sway + vein displacement ---- */
+const tendrilVertexShader = /* glsl */ `
+  uniform float uTime;
+  uniform float uGrowth; // 0-1 how much of tube is visible
 
-  stack.push({
-    pos: new THREE.Vector3(0, -3, 0),
-    dir: new THREE.Vector3(0, 1, 0),
-    depth: 0,
-  });
+  varying vec2 vUv;
+  varying vec3 vNormal;
+  varying vec3 vWorldPos;
+  varying vec3 vViewDir;
 
-  let seedState = 42;
-  const seededRandom = () => {
-    seedState = (seedState * 16807) % 2147483647;
-    return (seedState - 1) / 2147483646;
-  };
+  void main() {
+    vUv = uv;
+    vec3 pos = position;
 
-  while (stack.length > 0 && branches.length < 300) {
-    const { pos, dir, depth } = stack.pop()!;
-    if (depth > maxDepth) continue;
+    // Wind sway: increases along tube length (uv.x = 0 at base, 1 at tip)
+    float swayAmount = uv.x * uv.x * 0.3;
+    pos.x += sin(uTime * 1.2 + pos.y * 0.8) * swayAmount;
+    pos.z += cos(uTime * 0.9 + pos.y * 0.6) * swayAmount * 0.5;
 
-    const length = (1.2 - depth * 0.12) * (0.7 + seededRandom() * 0.6);
-    const end = pos.clone().add(dir.clone().multiplyScalar(length));
+    // Organic pulse: slight radial throb
+    float pulse = 1.0 + sin(uTime * 2.0 + uv.x * 10.0) * 0.06 * uv.x;
+    pos.x *= pulse;
+    pos.z *= pulse;
 
-    branches.push({
-      start: pos.clone(),
-      end: end.clone(),
-      depth,
-      angle: Math.atan2(dir.x, dir.y),
-      length,
-    });
+    vNormal = normalize(normalMatrix * normal);
+    vec4 wp = modelMatrix * vec4(pos, 1.0);
+    vWorldPos = wp.xyz;
+    vViewDir = normalize(cameraPosition - wp.xyz);
+    gl_Position = projectionMatrix * viewMatrix * wp;
+  }
+`;
 
-    if (depth < maxDepth) {
-      const numChildren = depth < 2 ? 3 : 2 + Math.floor(seededRandom() * 2);
-      for (let c = 0; c < numChildren; c++) {
-        const spread = 0.3 + seededRandom() * 0.5;
-        const twist = (seededRandom() - 0.5) * Math.PI * 2;
-        const childDir = dir.clone();
+/* ---- Tendril fragment shader: gradient + SSS + vein detail ---- */
+const tendrilFragmentShader = /* glsl */ `
+  uniform float uTime;
+  uniform float uGrowth;
+  uniform vec3 uMossColor;
+  uniform vec3 uGoldColor;
+  uniform vec3 uRoseColor;
+  uniform float uDepthFactor; // 1.0 for main, 0.7 for branches
 
-        const axis = new THREE.Vector3(
-          Math.sin(twist) * spread,
-          Math.cos(spread * 0.5),
-          Math.cos(twist) * spread
-        ).normalize();
-        childDir.applyAxisAngle(axis, spread);
+  varying vec2 vUv;
+  varying vec3 vNormal;
+  varying vec3 vWorldPos;
+  varying vec3 vViewDir;
 
-        stack.push({ pos: end.clone(), dir: childDir.normalize(), depth: depth + 1 });
+  float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+  }
+
+  void main() {
+    vec3 N = normalize(vNormal);
+    vec3 V = normalize(vViewDir);
+    float t = vUv.x; // along tube: 0=base, 1=tip
+
+    // Moss at base, gold at tip
+    vec3 baseColor = mix(uMossColor, uGoldColor, t * t);
+
+    // Vein pattern: longitudinal darker bands
+    float vein = sin(vUv.y * 30.0 + t * 5.0) * 0.5 + 0.5;
+    vein = smoothstep(0.3, 0.7, vein);
+    baseColor = mix(baseColor * 0.7, baseColor, vein);
+
+    // Main light from above-right
+    vec3 L = normalize(vec3(0.3, 1.0, 0.5));
+    float NdotL = max(dot(N, L), 0.0);
+
+    // Subsurface scattering: light wraps around from behind
+    float wrap = max(0.0, dot(N, -L) * 0.5 + 0.5);
+    float sss = pow(wrap, 2.5) * 0.5;
+    vec3 sssColor = mix(uMossColor, uRoseColor, 0.3) * sss;
+
+    // Fresnel rim
+    float fresnel = pow(1.0 - max(dot(N, V), 0.0), 3.0);
+    vec3 rimColor = mix(uMossColor, uGoldColor, t) * fresnel * 0.6;
+
+    // Specular
+    vec3 H = normalize(L + V);
+    float spec = pow(max(dot(N, H), 0.0), 32.0) * 0.4;
+    vec3 specColor = uGoldColor * spec;
+
+    // Combine
+    vec3 diffuse = baseColor * (NdotL * 0.5 + 0.25);
+    vec3 color = (diffuse + sssColor + rimColor + specColor) * uDepthFactor;
+
+    // Tip emission glow
+    float tipGlow = smoothstep(0.7, 1.0, t) * 0.4;
+    color += uGoldColor * tipGlow;
+
+    // Growth fade: alpha falls to 0 beyond growth front
+    float growthFade = smoothstep(uGrowth, uGrowth - 0.05, t);
+    float alpha = growthFade * 0.92;
+
+    gl_FragColor = vec4(color, alpha);
+  }
+`;
+
+/* ---- Spore vertex shader with glow ---- */
+const sporeVertexShader = /* glsl */ `
+  varying vec3 vNormal;
+  varying vec3 vWorldPos;
+  varying vec3 vViewDir;
+
+  void main() {
+    vNormal = normalize(normalMatrix * normal);
+    #ifdef USE_INSTANCING
+      vec4 ip = instanceMatrix * vec4(position, 1.0);
+      vec4 wp = modelMatrix * ip;
+    #else
+      vec4 wp = modelMatrix * vec4(position, 1.0);
+    #endif
+    vWorldPos = wp.xyz;
+    vViewDir = normalize(cameraPosition - wp.xyz);
+    gl_Position = projectionMatrix * viewMatrix * wp;
+  }
+`;
+
+const sporeFragmentShader = /* glsl */ `
+  uniform vec3 uColor;
+  uniform float uGlow;
+
+  varying vec3 vNormal;
+  varying vec3 vWorldPos;
+  varying vec3 vViewDir;
+
+  void main() {
+    vec3 N = normalize(vNormal);
+    vec3 V = normalize(vViewDir);
+
+    float fresnel = pow(1.0 - max(dot(N, V), 0.0), 2.0);
+    vec3 color = uColor * (0.4 + fresnel * 0.6) + uColor * uGlow;
+
+    float alpha = 0.5 + fresnel * 0.4;
+    gl_FragColor = vec4(color, alpha);
+  }
+`;
+
+interface TendrilPath {
+  curve: THREE.CatmullRomCurve3;
+  points: THREE.Vector3[];
+  growthOrder: number;
+  depth: number;
+}
+
+function generateTendrilPaths(count: number): TendrilPath[] {
+  const rand = seededRandom(77);
+  const paths: TendrilPath[] = [];
+  const mainCount = Math.min(count, 22);
+
+  for (let m = 0; m < mainCount; m++) {
+    const phi = rand() * Math.PI * 2;
+    const theta = rand() * Math.PI * 0.7;
+    const dir = new THREE.Vector3(
+      Math.sin(theta) * Math.cos(phi),
+      Math.sin(theta) * Math.sin(phi) * 0.6 + 0.4,
+      Math.cos(theta) * 0.3
+    ).normalize();
+
+    const segCount = 7 + Math.floor(rand() * 5);
+    const segLen = 0.7 + rand() * 0.5;
+    const points: THREE.Vector3[] = [new THREE.Vector3(0, -2, 0)];
+    let currentDir = dir.clone();
+    let pos = points[0].clone();
+
+    for (let s = 0; s < segCount; s++) {
+      pos = pos.clone().add(currentDir.clone().multiplyScalar(segLen));
+      points.push(pos.clone());
+      const bendAxis = new THREE.Vector3(rand() - 0.5, rand() - 0.5, rand() - 0.5).normalize();
+      currentDir.applyAxisAngle(bendAxis, (rand() - 0.5) * 0.45);
+      currentDir.normalize();
+    }
+
+    const curve = new THREE.CatmullRomCurve3(points, false, 'catmullrom', 0.5);
+    paths.push({ curve, points, growthOrder: m / mainCount, depth: 0 });
+
+    // Branch from midpoint -- more branching for density
+    if (rand() > 0.25 && paths.length < count) {
+      const branchStart = Math.floor(points.length * (0.3 + rand() * 0.3));
+      const branchDir = currentDir.clone();
+      const branchAxis = new THREE.Vector3(rand() - 0.5, rand() - 0.5, rand() - 0.5).normalize();
+      branchDir.applyAxisAngle(branchAxis, 0.5 + rand() * 0.6);
+      branchDir.normalize();
+
+      const branchPts: THREE.Vector3[] = [points[Math.min(branchStart, points.length - 1)].clone()];
+      let bPos = branchPts[0].clone();
+      let bDir = branchDir.clone();
+
+      for (let b = 0; b < 4 + Math.floor(rand() * 3); b++) {
+        bPos = bPos.clone().add(bDir.clone().multiplyScalar(segLen * 0.6));
+        branchPts.push(bPos.clone());
+        const ba = new THREE.Vector3(rand() - 0.5, rand() - 0.5, rand() - 0.5).normalize();
+        bDir.applyAxisAngle(ba, (rand() - 0.5) * 0.6);
+        bDir.normalize();
+      }
+
+      if (branchPts.length >= 3) {
+        const bCurve = new THREE.CatmullRomCurve3(branchPts, false, 'catmullrom', 0.5);
+        paths.push({ curve: bCurve, points: branchPts, growthOrder: m / mainCount + 0.1, depth: 1 });
+      }
+    }
+
+    // Second branch for extra density
+    if (rand() > 0.5 && paths.length < count) {
+      const branchStart = Math.floor(points.length * (0.5 + rand() * 0.3));
+      const branchDir = new THREE.Vector3(rand() - 0.5, rand() * 0.8, rand() - 0.5).normalize();
+
+      const branchPts: THREE.Vector3[] = [points[Math.min(branchStart, points.length - 1)].clone()];
+      let bPos = branchPts[0].clone();
+      let bDir = branchDir.clone();
+
+      for (let b = 0; b < 3 + Math.floor(rand() * 2); b++) {
+        bPos = bPos.clone().add(bDir.clone().multiplyScalar(segLen * 0.5));
+        branchPts.push(bPos.clone());
+        const ba = new THREE.Vector3(rand() - 0.5, rand() - 0.5, rand() - 0.5).normalize();
+        bDir.applyAxisAngle(ba, (rand() - 0.5) * 0.5);
+        bDir.normalize();
+      }
+
+      if (branchPts.length >= 3) {
+        const bCurve = new THREE.CatmullRomCurve3(branchPts, false, 'catmullrom', 0.5);
+        paths.push({ curve: bCurve, points: branchPts, growthOrder: m / mainCount + 0.2, depth: 1 });
       }
     }
   }
 
-  return branches;
+  return paths.slice(0, count);
 }
 
 export function TreeBranches({ progress, isMobile }: { progress: number; isMobile: boolean }) {
-  const meshRef = useRef<THREE.LineSegments>(null);
+  const TENDRIL_COUNT = isMobile ? 18 : 36;
+  const groupRef = useRef<THREE.Group>(null);
   const timeRef = useRef(0);
 
-  const { branches, positions, colors } = useMemo(() => {
-    const b = generateTree(isMobile ? 5 : 7);
-    const pos = new Float32Array(b.length * 6);
-    const col = new Float32Array(b.length * 6);
+  const { tendrilPaths, tubeGeos, shaderMats } = useMemo(() => {
+    const paths = generateTendrilPaths(TENDRIL_COUNT);
 
-    for (let i = 0; i < b.length; i++) {
-      const branch = b[i];
-      pos[i * 6] = branch.start.x;
-      pos[i * 6 + 1] = branch.start.y;
-      pos[i * 6 + 2] = branch.start.z;
-      pos[i * 6 + 3] = branch.end.x;
-      pos[i * 6 + 4] = branch.end.y;
-      pos[i * 6 + 5] = branch.end.z;
+    const geos = paths.map((p) => {
+      const radius = p.depth === 0 ? 0.14 : 0.08;
+      return new THREE.TubeGeometry(p.curve, isMobile ? 20 : 28, radius, 8, false);
+    });
 
-      const t = branch.depth / 7;
-      // Start vertex: vivid green -> gold at tips
-      col[i * 6] = 0.45 + t * 0.50;
-      col[i * 6 + 1] = 0.85 - t * 0.10;
-      col[i * 6 + 2] = 0.50 - t * 0.20;
-      // End vertex
-      col[i * 6 + 3] = 0.50 + t * 0.50;
-      col[i * 6 + 4] = 0.85 - t * 0.15;
-      col[i * 6 + 5] = 0.50 - t * 0.25;
-    }
+    const mats = paths.map((p) => {
+      return new THREE.ShaderMaterial({
+        vertexShader: tendrilVertexShader,
+        fragmentShader: tendrilFragmentShader,
+        uniforms: {
+          uTime: { value: 0 },
+          uGrowth: { value: 0 },
+          uMossColor: { value: new THREE.Color(0x4a7c59) },
+          uGoldColor: { value: new THREE.Color(0xc9a84c) },
+          uRoseColor: { value: new THREE.Color(0xd4918a) },
+          uDepthFactor: { value: p.depth === 0 ? 1.0 : 0.75 },
+        },
+        transparent: true,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      });
+    });
 
-    return { branches: b, positions: pos, colors: col };
-  }, [isMobile]);
+    return { tendrilPaths: paths, tubeGeos: geos, shaderMats: mats };
+  }, [TENDRIL_COUNT, isMobile]);
 
   useFrame((_, delta) => {
-    if (!meshRef.current) return;
+    if (!groupRef.current) return;
     timeRef.current += delta;
+    const t = timeRef.current;
     const sceneP = Math.max(0, Math.min(1, (progress - 0.20) / 0.15));
 
-    const posAttr = meshRef.current.geometry.attributes.position as THREE.BufferAttribute;
-    const arr = posAttr.array as Float32Array;
+    for (let i = 0; i < tendrilPaths.length; i++) {
+      const path = tendrilPaths[i];
+      const mat = shaderMats[i];
 
-    const maxVisibleDepth = sceneP * 8;
+      // FAST growth: first tendrils visible immediately, all visible by 50%
+      const growthStart = path.growthOrder * 0.3; // compressed: starts early
+      const localGrowth = Math.max(0, Math.min(1, (sceneP - growthStart) / 0.5));
 
-    for (let i = 0; i < branches.length; i++) {
-      const branch = branches[i];
-      if (branch.depth <= maxVisibleDepth) {
-        const branchProgress = Math.min(1, (maxVisibleDepth - branch.depth) * 2);
-        arr[i * 6 + 3] = branch.start.x + (branch.end.x - branch.start.x) * branchProgress;
-        arr[i * 6 + 4] = branch.start.y + (branch.end.y - branch.start.y) * branchProgress;
-        arr[i * 6 + 5] = branch.start.z + (branch.end.z - branch.start.z) * branchProgress;
-      } else {
-        arr[i * 6 + 3] = arr[i * 6];
-        arr[i * 6 + 4] = arr[i * 6 + 1];
-        arr[i * 6 + 5] = arr[i * 6 + 2];
-      }
+      mat.uniforms.uTime.value = t;
+      mat.uniforms.uGrowth.value = localGrowth;
     }
 
-    posAttr.needsUpdate = true;
-
-    const t = timeRef.current;
-    meshRef.current.rotation.y = Math.sin(t * 0.15) * 0.05;
-
-    const mat = meshRef.current.material as THREE.LineBasicMaterial;
-    mat.opacity = 0.85 + sceneP * 0.15;
+    groupRef.current.rotation.y = Math.sin(t * 0.12) * 0.06;
   });
 
   return (
-    <lineSegments ref={meshRef}>
-      <bufferGeometry>
-        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
-        <bufferAttribute attach="attributes-color" args={[colors, 3]} />
-      </bufferGeometry>
-      <lineBasicMaterial
-        vertexColors
-        transparent
-        opacity={0.95}
-        linewidth={1}
-      />
-    </lineSegments>
+    <group ref={groupRef}>
+      {tubeGeos.map((geo, i) => (
+        <mesh key={i} geometry={geo} material={shaderMats[i]} />
+      ))}
+    </group>
   );
 }
 
 export function BranchParticles({ progress, isMobile }: { progress: number; isMobile: boolean }) {
-  const SAMPLES_PER_BRANCH = 3;
-  const meshRef = useRef<THREE.Points>(null);
+  const SPORE_COUNT = isMobile ? 60 : 150;
+  const meshRef = useRef<THREE.InstancedMesh>(null);
   const timeRef = useRef(0);
+  const dummy = useMemo(() => new THREE.Object3D(), []);
 
-  const { branchData, positions, colors } = useMemo(() => {
-    const b = generateTree(isMobile ? 5 : 7);
-    const total = b.length * SAMPLES_PER_BRANCH;
-    const pos = new Float32Array(total * 3);
-    const col = new Float32Array(total * 3);
-    const data: Array<{ depth: number; points: Array<{ x: number; y: number; z: number }> }> = [];
+  const { sporeData, sporeMat } = useMemo(() => {
+    const rand = seededRandom(99);
+    const data: { basePos: THREE.Vector3; velocity: THREE.Vector3; phase: number }[] = [];
 
-    for (let i = 0; i < b.length; i++) {
-      const branch = b[i];
-      const pts: Array<{ x: number; y: number; z: number }> = [];
-      for (let s = 0; s < SAMPLES_PER_BRANCH; s++) {
-        const frac = (s + 0.5) / SAMPLES_PER_BRANCH;
-        const idx = (i * SAMPLES_PER_BRANCH + s) * 3;
-        const x = branch.start.x + (branch.end.x - branch.start.x) * frac;
-        const y = branch.start.y + (branch.end.y - branch.start.y) * frac;
-        const z = branch.start.z + (branch.end.z - branch.start.z) * frac;
-        pos[idx] = x;
-        pos[idx + 1] = y;
-        pos[idx + 2] = z;
-        pts.push({ x, y, z });
-
-        const t = branch.depth / 7;
-        col[idx] = 0.50 + t * 0.45;
-        col[idx + 1] = 0.85 - t * 0.10;
-        col[idx + 2] = 0.50 - t * 0.20;
-      }
-      data.push({ depth: branch.depth, points: pts });
+    for (let i = 0; i < SPORE_COUNT; i++) {
+      const phi = rand() * Math.PI * 2;
+      const theta = rand() * Math.PI * 0.85;
+      const r = 1.0 + rand() * 3.5;
+      data.push({
+        basePos: new THREE.Vector3(
+          Math.sin(theta) * Math.cos(phi) * r,
+          Math.sin(theta) * Math.sin(phi) * r * 0.6 + 0.5,
+          Math.cos(theta) * r * 0.3
+        ),
+        velocity: new THREE.Vector3(
+          (rand() - 0.5) * 0.25,
+          rand() * 0.15 + 0.03,
+          (rand() - 0.5) * 0.12
+        ),
+        phase: rand() * Math.PI * 2,
+      });
     }
 
-    return { branchData: data, positions: pos, colors: col };
-  }, [isMobile]);
+    const mat = new THREE.ShaderMaterial({
+      vertexShader: sporeVertexShader,
+      fragmentShader: sporeFragmentShader,
+      uniforms: {
+        uColor: { value: new THREE.Color(0x6ea87e) },
+        uGlow: { value: 0 },
+      },
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
 
-  useFrame((_, delta) => {
-    if (!meshRef.current) return;
-    timeRef.current += delta;
-    const sceneP = Math.max(0, Math.min(1, (progress - 0.20) / 0.15));
-    const maxVisibleDepth = sceneP * 8;
-
-    const posAttr = meshRef.current.geometry.attributes.position as THREE.BufferAttribute;
-    const arr = posAttr.array as Float32Array;
-
-    for (let i = 0; i < branchData.length; i++) {
-      const bd = branchData[i];
-      for (let s = 0; s < SAMPLES_PER_BRANCH; s++) {
-        const idx = (i * SAMPLES_PER_BRANCH + s) * 3;
-        if (bd.depth <= maxVisibleDepth) {
-          arr[idx] = bd.points[s].x;
-          arr[idx + 1] = bd.points[s].y;
-          arr[idx + 2] = bd.points[s].z;
-        } else {
-          arr[idx + 1] = -100; // hide
-        }
-      }
-    }
-
-    posAttr.needsUpdate = true;
-    meshRef.current.rotation.y = Math.sin(timeRef.current * 0.15) * 0.05;
-
-    const mat = meshRef.current.material as THREE.PointsMaterial;
-    mat.opacity = sceneP * 0.7;
-  });
-
-  return (
-    <points ref={meshRef}>
-      <bufferGeometry>
-        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
-        <bufferAttribute attach="attributes-color" args={[colors, 3]} />
-      </bufferGeometry>
-      <pointsMaterial
-        size={isMobile ? 0.08 : 0.06}
-        vertexColors
-        transparent
-        opacity={0}
-        blending={THREE.AdditiveBlending}
-        depthWrite={false}
-        sizeAttenuation
-      />
-    </points>
-  );
-}
-
-export function LeafBuds({ progress, isMobile }: { progress: number; isMobile: boolean }) {
-  const COUNT = isMobile ? 40 : 80;
-  const meshRef = useRef<THREE.Points>(null);
-  const timeRef = useRef(0);
-
-  const { positions, colors } = useMemo(() => {
-    const b = generateTree(isMobile ? 5 : 7);
-    const tips = b.filter(branch => branch.depth >= (isMobile ? 4 : 5));
-    const count = Math.min(COUNT, tips.length);
-
-    const pos = new Float32Array(count * 3);
-    const col = new Float32Array(count * 3);
-
-    for (let i = 0; i < count; i++) {
-      const tip = tips[i % tips.length];
-      pos[i * 3] = tip.end.x;
-      pos[i * 3 + 1] = tip.end.y;
-      pos[i * 3 + 2] = tip.end.z;
-
-      const isRose = i % 3 === 0;
-      col[i * 3] = isRose ? 0.90 : 0.85;
-      col[i * 3 + 1] = isRose ? 0.62 : 0.72;
-      col[i * 3 + 2] = isRose ? 0.58 : 0.35;
-    }
-
-    return { positions: pos, colors: col };
-  }, [COUNT, isMobile]);
+    return { sporeData: data, sporeMat: mat };
+  }, [SPORE_COUNT]);
 
   useFrame((_, delta) => {
     if (!meshRef.current) return;
@@ -270,38 +362,111 @@ export function LeafBuds({ progress, isMobile }: { progress: number; isMobile: b
     const t = timeRef.current;
     const sceneP = Math.max(0, Math.min(1, (progress - 0.20) / 0.15));
 
-    const mat = meshRef.current.material as THREE.PointsMaterial;
-    const budPhase = Math.max(0, (sceneP - 0.3) / 0.7);
-    mat.opacity = budPhase * 0.9;
-    mat.size = (isMobile ? 0.18 : 0.14) * budPhase + Math.sin(t * 2) * 0.02;
+    // Spores appear earlier: at 20% into scene
+    const sporePhase = Math.max(0, (sceneP - 0.2) / 0.8);
+    sporeMat.uniforms.uGlow.value = sporePhase * 0.8;
+
+    for (let i = 0; i < SPORE_COUNT; i++) {
+      const s = sporeData[i];
+      dummy.position.set(
+        s.basePos.x + Math.sin(t * 0.5 + s.phase) * 0.4 + s.velocity.x * t * sporePhase,
+        s.basePos.y + s.velocity.y * t * sporePhase + Math.sin(t * 0.8 + s.phase) * 0.15,
+        s.basePos.z + Math.cos(t * 0.4 + s.phase) * 0.25 + s.velocity.z * t * sporePhase
+      );
+      const pulseScale = sporePhase * (0.6 + Math.sin(t * 2.5 + s.phase) * 0.4);
+      dummy.scale.setScalar(Math.max(0.01, pulseScale));
+      dummy.updateMatrix();
+      meshRef.current.setMatrixAt(i, dummy.matrix);
+    }
+    meshRef.current.instanceMatrix.needsUpdate = true;
   });
 
   return (
-    <points ref={meshRef}>
-      <bufferGeometry>
-        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
-        <bufferAttribute attach="attributes-color" args={[colors, 3]} />
-      </bufferGeometry>
-      <pointsMaterial
-        size={0.14}
-        vertexColors
-        transparent
-        opacity={0}
-        blending={THREE.AdditiveBlending}
-        depthWrite={false}
-        sizeAttenuation
-      />
-    </points>
+    <instancedMesh ref={meshRef} args={[undefined, sporeMat, SPORE_COUNT]}>
+      <sphereGeometry args={[0.08, 8, 8]} />
+    </instancedMesh>
+  );
+}
+
+export function LeafBuds({ progress, isMobile }: { progress: number; isMobile: boolean }) {
+  const BUD_COUNT = isMobile ? 16 : 30;
+  const meshRef = useRef<THREE.InstancedMesh>(null);
+  const timeRef = useRef(0);
+  const dummy = useMemo(() => new THREE.Object3D(), []);
+
+  const { budData, budMat } = useMemo(() => {
+    const paths = generateTendrilPaths(isMobile ? 18 : 36);
+    const data = paths.slice(0, BUD_COUNT).map((p, i) => {
+      const rand = seededRandom(55 + i);
+      const tipPoint = p.points[p.points.length - 1];
+      return {
+        position: tipPoint.clone(),
+        phase: rand() * Math.PI * 2,
+        isRose: rand() > 0.5,
+      };
+    });
+
+    const mat = new THREE.MeshPhysicalMaterial({
+      color: 0xd4918a,
+      emissive: 0xc9a84c,
+      emissiveIntensity: 0.5,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.15,
+      transparent: true,
+      opacity: 0,
+      roughness: 0.3,
+      metalness: 0.15,
+    });
+
+    return { budData: data, budMat: mat };
+  }, [BUD_COUNT, isMobile]);
+
+  useFrame((_, delta) => {
+    if (!meshRef.current) return;
+    timeRef.current += delta;
+    const t = timeRef.current;
+    const sceneP = Math.max(0, Math.min(1, (progress - 0.20) / 0.15));
+
+    // Buds appear earlier: at 30% into scene
+    const budPhase = Math.max(0, (sceneP - 0.3) / 0.7);
+    const blend = Math.sin(t * 0.8) * 0.5 + 0.5; // smooth 0-1 oscillation
+    budMat.emissive.setRGB(
+      0.83 * (1 - blend) + 0.79 * blend,  // rose r -> gold r
+      0.57 * (1 - blend) + 0.66 * blend,  // rose g -> gold g
+      0.54 * (1 - blend) + 0.30 * blend,  // rose b -> gold b
+    );
+    budMat.emissiveIntensity = 0.4 + budPhase * 0.8;
+    budMat.opacity = budPhase * 0.95;
+
+    for (let i = 0; i < budData.length; i++) {
+      const b = budData[i];
+      dummy.position.copy(b.position);
+      const bloomScale = budPhase * (0.8 + Math.sin(t * 1.5 + b.phase) * 0.3);
+      dummy.scale.setScalar(Math.max(0.01, bloomScale));
+      dummy.rotation.x = Math.sin(t * 0.5 + b.phase) * 0.3;
+      dummy.rotation.y = t * 0.3 + b.phase;
+      dummy.updateMatrix();
+      meshRef.current.setMatrixAt(i, dummy.matrix);
+    }
+    meshRef.current.instanceMatrix.needsUpdate = true;
+  });
+
+  return (
+    <instancedMesh ref={meshRef} args={[undefined, budMat, BUD_COUNT]}>
+      <dodecahedronGeometry args={[0.35, 1]} />
+    </instancedMesh>
   );
 }
 
 export function GrowthLighting() {
   return (
     <>
-      <ambientLight intensity={0.08} />
-      <pointLight position={[0, 5, 3]} intensity={1.5} color="#4a7c59" distance={18} decay={2} />
-      <pointLight position={[-3, -1, 2]} intensity={0.8} color="#c9a84c" distance={14} decay={2} />
-      <pointLight position={[2, 3, -2]} intensity={0.5} color="#d4918a" distance={10} decay={2} />
+      <ambientLight intensity={0.35} />
+      <pointLight position={[0, 8, 5]} intensity={6} color="#4a7c59" distance={30} decay={2} />
+      <pointLight position={[-5, -1, 4]} intensity={3} color="#c9a84c" distance={25} decay={2} />
+      <pointLight position={[4, 5, -3]} intensity={2.5} color="#d4918a" distance={22} decay={2} />
+      <pointLight position={[0, -4, 2]} intensity={2} color="#d4918a" distance={18} decay={2} />
+      <pointLight position={[0, 3, 8]} intensity={3} color="#e4dcc8" distance={22} decay={2} />
     </>
   );
 }
