@@ -1,5 +1,5 @@
 /**
- * TextOverlay: All narrative text for Regenerate
+ * TextOverlay: All narrative text for Regenera
  *
  * 5-act structure with scroll-driven opacity and Y-translation.
  * Typography: Playfair Display (display), Inter (body), IBM Plex Mono (accent).
@@ -162,7 +162,7 @@ export default function TextOverlay({ progress, isMobile }: TextOverlayProps) {
         {/* === TITLE === */}
         <TextSection enterAt={TEXT.TITLE.enterAt} exitAt={TEXT.TITLE.exitAt} progress={progress} heroMode>
           <div style={{ ...serif(isMobile ? "clamp(1.8rem, 6vw, 3rem)" : "clamp(2rem, 4vw, 3.5rem)", 700), color: "#6ea87e", letterSpacing: "0.08em", textShadow: "0 0 40px rgba(74, 124, 89, 0.4)" }}>
-            REGENERATE
+            REGENERA
           </div>
           <div style={{ ...mono(isMobile ? "0.7rem" : "0.8rem"), color: "#a3c9a8", marginTop: "1rem", letterSpacing: "0.2em" }}>
             The story of what was already happening

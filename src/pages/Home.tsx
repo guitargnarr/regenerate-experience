@@ -1,5 +1,5 @@
 /**
- * Home: Regenerate -- The story of what was already happening
+ * Home: Regenera -- A scroll-driven cinematic experience
  *
  * 5 Scenes: The Silence -> The Proliferation -> The Search -> The Convergence -> The Spark
  * Scroll spacer: 1000vh

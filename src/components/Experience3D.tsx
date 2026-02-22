@@ -1,6 +1,6 @@
 /**
  * Experience3D: Main 3D canvas orchestrator -- 5-Scene Architecture
- * Regenerate: The story of what was already happening.
+ * Regenera: A scroll-driven cinematic experience.
  * Timeline constants imported from @/constants/timeline.
  */
 

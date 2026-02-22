@@ -1,5 +1,5 @@
 /**
- * Centralized timeline constants for Regenerate.
+ * Centralized timeline constants for Regenera.
  *
  * Single source of truth for all scene timing, transition zones,
  * text overlay windows, camera behavior, and audio scene ranges.

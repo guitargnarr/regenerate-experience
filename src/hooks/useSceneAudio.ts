@@ -1,5 +1,5 @@
 /**
- * useSceneAudio: Sample-based Web Audio engine for Regenerate.
+ * useSceneAudio: Sample-based Web Audio engine for Regenera.
  *
  * Replaces procedural synthesis with real audio samples per scene.
  * Progressive loading: samples fetched as scroll approaches each scene.
