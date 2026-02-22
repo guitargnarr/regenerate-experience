@@ -6,11 +6,12 @@
  * Organic audio: Procedural Web Audio API synthesis evolving per scene
  */
 
-import { Suspense } from "react";
+import { Suspense, useEffect, useRef } from "react";
 import { useScrollProgress } from "@/hooks/useScrollProgress";
 import { useMobileDetect } from "@/hooks/useMobileDetect";
 import { useSceneAudio } from "@/hooks/useSceneAudio";
 import { useMobileScroll } from "@/hooks/useMobileScroll";
+import { preloadTextures } from "@/hooks/useTexture";
 import Experience3D from "@/components/Experience3D";
 import TextOverlay from "@/components/TextOverlay";
 import AudioToggle from "@/components/AudioToggle";
@@ -36,6 +37,36 @@ export default function Home() {
     momentumThreshold: 0.2,
     maxVelocity: device.isMobile ? 10 : 8,
   });
+
+  // Progressive texture preloading tied to scroll position
+  const preloaded = useRef(new Set<number>());
+  useEffect(() => {
+    // Immediate: hero + Scene I
+    if (!preloaded.current.has(0)) {
+      preloaded.current.add(0);
+      preloadTextures(["/textures/hero-forest.jpg", "/textures/soil-macro.jpg"]);
+    }
+    // Scene II textures
+    if (progress > 0.10 && !preloaded.current.has(1)) {
+      preloaded.current.add(1);
+      preloadTextures(["/textures/leaf-macro.jpg", "/textures/moss-bark.jpg", "/textures/fern-alpha.jpg", "/textures/foliage-bg.jpg"]);
+    }
+    // Scene III textures
+    if (progress > 0.28 && !preloaded.current.has(2)) {
+      preloaded.current.add(2);
+      preloadTextures(["/textures/ice-fracture.jpg"]);
+    }
+    // Scene IV textures
+    if (progress > 0.45 && !preloaded.current.has(3)) {
+      preloaded.current.add(3);
+      preloadTextures(["/textures/neural-fiber.jpg"]);
+    }
+    // Scene V textures
+    if (progress > 0.62 && !preloaded.current.has(4)) {
+      preloaded.current.add(4);
+      preloadTextures(["/textures/spark-particle.jpg", "/textures/sunbeams.jpg"]);
+    }
+  }, [progress]);
 
   return (
     <div style={{ position: "relative", overscrollBehavior: "none", WebkitOverflowScrolling: "touch" }}>

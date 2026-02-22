@@ -334,6 +334,36 @@ export function HelixRungs({ progress, isMobile }: { progress: number; isMobile:
   );
 }
 
+export function ConvergenceBackdrop({ progress }: { progress: number }) {
+  const meshRef = useRef<THREE.Mesh>(null);
+
+  const neuralTex = useMemo(() => {
+    const tex = new THREE.TextureLoader().load("/textures/neural-fiber.jpg");
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }, []);
+
+  useFrame(() => {
+    if (!meshRef.current) return;
+    const sceneP = Math.max(0, Math.min(1, (progress - 0.55) / 0.15));
+    const mat = meshRef.current.material as THREE.MeshBasicMaterial;
+    mat.opacity = sceneP * 0.25;
+  });
+
+  return (
+    <mesh ref={meshRef} position={[0, 0, -10]} scale={[30, 20, 1]}>
+      <planeGeometry />
+      <meshBasicMaterial
+        map={neuralTex}
+        transparent
+        opacity={0}
+        depthWrite={false}
+        blending={THREE.AdditiveBlending}
+      />
+    </mesh>
+  );
+}
+
 export function HelixLighting() {
   return (
     <>

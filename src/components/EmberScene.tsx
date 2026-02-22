@@ -167,18 +167,27 @@ const groundVertexShader = /* glsl */ `
 
 /* ---- Ground plane fragment shader ---- */
 const groundFragmentShader = /* glsl */ `
+  uniform sampler2D uSoilTex;
+
   varying vec2 vUv;
   varying float vDisp;
 
   void main() {
-    // Dark soil, brighter near center under spotlight
     float dist = length(vUv - 0.5);
     float falloff = 1.0 - smoothstep(0.0, 0.5, dist);
+
+    // Sample soil photo texture (tiled 2x)
+    vec3 texColor = texture2D(uSoilTex, vUv * 2.0).rgb * 0.15;
+
+    // Procedural soil
     vec3 soil = vec3(0.06, 0.07, 0.04) + falloff * vec3(0.04, 0.05, 0.03);
     soil += vDisp * vec3(0.04, 0.06, 0.03);
 
+    // Blend: 60% texture, 40% procedural
+    vec3 color = mix(soil, texColor, 0.6);
+
     float alpha = (1.0 - smoothstep(0.3, 0.5, dist)) * 0.85;
-    gl_FragColor = vec4(soil, alpha);
+    gl_FragColor = vec4(color, alpha);
   }
 `;
 
@@ -246,17 +255,20 @@ export function DustMotes({ progress, isMobile }: { progress: number; isMobile: 
   const meshRef = useRef<THREE.Points>(null);
   const timeRef = useRef(0);
 
-  const positions = useMemo(() => {
+  const { positions, basePositions } = useMemo(() => {
     const pos = new Float32Array(COUNT * 3);
+    const base = new Float32Array(COUNT * 3);
     for (let i = 0; i < COUNT; i++) {
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
       const r = 2 + Math.random() * 4;
-      pos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-      pos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
-      pos[i * 3 + 2] = r * Math.cos(phi);
+      const x = r * Math.sin(phi) * Math.cos(theta);
+      const y = r * Math.sin(phi) * Math.sin(theta);
+      const z = r * Math.cos(phi);
+      pos[i * 3] = x; pos[i * 3 + 1] = y; pos[i * 3 + 2] = z;
+      base[i * 3] = x; base[i * 3 + 1] = y; base[i * 3 + 2] = z;
     }
-    return pos;
+    return { positions: pos, basePositions: base };
   }, [COUNT]);
 
   useFrame((_, delta) => {
@@ -268,8 +280,9 @@ export function DustMotes({ progress, isMobile }: { progress: number; isMobile: 
     const posAttr = meshRef.current.geometry.attributes.position as THREE.BufferAttribute;
     const arr = posAttr.array as Float32Array;
     for (let i = 0; i < COUNT; i++) {
-      arr[i * 3 + 1] += Math.sin(t * 0.2 + i * 1.1) * 0.002;
-      arr[i * 3] += Math.cos(t * 0.15 + i * 0.7) * 0.001;
+      arr[i * 3] = basePositions[i * 3] + Math.cos(t * 0.15 + i * 0.7) * 0.15;
+      arr[i * 3 + 1] = basePositions[i * 3 + 1] + Math.sin(t * 0.2 + i * 1.1) * 0.25;
+      arr[i * 3 + 2] = basePositions[i * 3 + 2] + Math.sin(t * 0.1 + i * 0.9) * 0.1;
     }
     posAttr.needsUpdate = true;
 
@@ -295,10 +308,18 @@ export function DustMotes({ progress, isMobile }: { progress: number; isMobile: 
   );
 }
 
-export function GroundPlane() {
+export function GroundPlane({ progress: _progress }: { progress: number }) {
+  const soilTex = useMemo(() => {
+    const tex = new THREE.TextureLoader().load("/textures/soil-macro.jpg");
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    return tex;
+  }, []);
+
   const uniforms = useMemo(() => ({
     uTime: { value: 0 },
-  }), []);
+    uSoilTex: { value: soilTex },
+  }), [soilTex]);
 
   useFrame((_, delta) => {
     uniforms.uTime.value += delta;

@@ -400,6 +400,38 @@ export function AttractorGlow({ progress }: { progress: number }) {
   );
 }
 
+export function FinaleBackdrop({ progress }: { progress: number }) {
+  const meshRef = useRef<THREE.Mesh>(null);
+
+  const sunbeamTex = useMemo(() => {
+    const tex = new THREE.TextureLoader().load("/textures/sunbeams.jpg");
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }, []);
+
+  useFrame(() => {
+    if (!meshRef.current) return;
+    const sceneP = Math.max(0, Math.min(1, (progress - 0.72) / 0.15));
+    // Fade in during ignition phase (sceneP > 0.6)
+    const ignitionP = Math.max(0, (sceneP - 0.6) / 0.4);
+    const mat = meshRef.current.material as THREE.MeshBasicMaterial;
+    mat.opacity = ignitionP * 0.35;
+  });
+
+  return (
+    <mesh ref={meshRef} position={[0, 0, -12]} scale={[35, 22, 1]}>
+      <planeGeometry />
+      <meshBasicMaterial
+        map={sunbeamTex}
+        transparent
+        opacity={0}
+        depthWrite={false}
+        blending={THREE.AdditiveBlending}
+      />
+    </mesh>
+  );
+}
+
 export function AttractorLighting({ progress }: { progress: number }) {
   const mainRef = useRef<THREE.PointLight>(null);
   const timeRef = useRef(0);

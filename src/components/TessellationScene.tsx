@@ -65,6 +65,7 @@ const morphFragmentShader = /* glsl */ `
   uniform float uMaterialPhase; // 0 = glass, 0.5 = metallic, 1 = matte
   uniform vec3 uBaseColor;
   uniform float uOpacity;
+  uniform sampler2D uEnvTex;
 
   varying vec3 vNormal;
   varying vec3 vWorldPos;
@@ -84,10 +85,18 @@ const morphFragmentShader = /* glsl */ `
     vec3 L2 = normalize(vec3(-0.5, 0.3, 1.0));
     float NdotL2 = max(dot(N, L2), 0.0);
 
+    // Ice fracture env map: normal-based UV lookup for crystalline reflection
+    vec3 reflectDir = reflect(-V, N);
+    vec2 envUv = reflectDir.xy * 0.5 + 0.5;
+    vec3 envSample = texture2D(uEnvTex, envUv).rgb;
+
     // Glass phase: transparent + heavy fresnel + bright refractive look
     vec3 glassColor = uBaseColor * 0.4 + vec3(0.95, 0.97, 1.0) * vFresnel * 1.2;
     float glassAlpha = 0.2 + vFresnel * 0.7;
     float glassSpec = pow(NdotH, 128.0) * 1.8;
+    // Blend ice fracture texture into glass phase
+    float glassMix = smoothstep(0.5, 0.0, uMaterialPhase);
+    glassColor += envSample * 0.25 * glassMix * (1.0 - vFresnel);
     // Internal refraction fake: color shift
     glassColor += vec3(0.1, 0.15, 0.2) * (1.0 - vFresnel) * 0.3;
 
@@ -247,6 +256,13 @@ export function VoronoiCells({ progress, isMobile }: { progress: number; isMobil
   const lineRef = useRef<THREE.LineSegments>(null);
   const timeRef = useRef(0);
 
+  const iceTex = useMemo(() => {
+    const tex = new THREE.TextureLoader().load("/textures/ice-fracture.jpg");
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    return tex;
+  }, []);
+
   const { polyStates, morphTargets, materials, lineGeo, lineUniforms } = useMemo(() => {
     const rand = seededRandom(31);
     const targets = generateMorphTargets(1.0, 16);
@@ -302,6 +318,7 @@ export function VoronoiCells({ progress, isMobile }: { progress: number; isMobil
           uMaterialPhase: { value: 0 },
           uBaseColor: { value: colors[i % colors.length] },
           uOpacity: { value: 0 },
+          uEnvTex: { value: iceTex },
         },
         transparent: true,
         side: THREE.DoubleSide,
@@ -320,7 +337,7 @@ export function VoronoiCells({ progress, isMobile }: { progress: number; isMobil
     const lUniforms = { uOpacity: { value: 0 } };
 
     return { polyStates: states, morphTargets: targets, materials: mats, lineGeo: lGeo, lineUniforms: lUniforms };
-  }, [POLY_COUNT, isMobile]);
+  }, [POLY_COUNT, isMobile, iceTex]);
 
   // Build geometries with morph target attributes
   const geos = useMemo(() => {

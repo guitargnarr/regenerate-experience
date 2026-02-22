@@ -8,35 +8,34 @@
  */
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import { AUDIO_SCENES, SCENES as TL } from "@/constants/timeline";
 
 /* ── Sample manifest ─────────────────────────────────────────────── */
 
 interface SampleConfig {
   url: string;
-  minInterval: number;  // seconds between plays (minimum)
-  maxInterval: number;  // seconds between plays (maximum)
-  gain: number;         // 0-1 volume
+  minInterval: number;
+  maxInterval: number;
+  gain: number;
 }
 
 interface SceneConfig {
   start: number;
   end: number;
-  prefetchAt: number;   // start fetching when progress exceeds this
+  prefetchAt: number;
   samples: SampleConfig[];
 }
 
 const SCENES: SceneConfig[] = [
   {
-    // I. The Silence
-    start: 0.03, end: 0.18, prefetchAt: 0,
+    ...AUDIO_SCENES[0],
     samples: [
       { url: "/audio/breath.mp3", minInterval: 3, maxInterval: 6, gain: 0.5 },
       { url: "/audio/wind-distant.mp3", minInterval: 5, maxInterval: 9, gain: 0.35 },
     ],
   },
   {
-    // II. The Proliferation
-    start: 0.20, end: 0.35, prefetchAt: 0.10,
+    ...AUDIO_SCENES[1],
     samples: [
       { url: "/audio/wood-creak.mp3", minInterval: 3, maxInterval: 7, gain: 0.4 },
       { url: "/audio/leaves-rustle.mp3", minInterval: 2, maxInterval: 5, gain: 0.45 },
@@ -44,8 +43,7 @@ const SCENES: SceneConfig[] = [
     ],
   },
   {
-    // III. The Search
-    start: 0.37, end: 0.52, prefetchAt: 0.27,
+    ...AUDIO_SCENES[2],
     samples: [
       { url: "/audio/footstep.mp3", minInterval: 1.5, maxInterval: 4, gain: 0.45 },
       { url: "/audio/door-latch.mp3", minInterval: 4, maxInterval: 8, gain: 0.4 },
@@ -53,16 +51,14 @@ const SCENES: SceneConfig[] = [
     ],
   },
   {
-    // IV. The Convergence
-    start: 0.54, end: 0.69, prefetchAt: 0.44,
+    ...AUDIO_SCENES[3],
     samples: [
       { url: "/audio/click-lock.mp3", minInterval: 2, maxInterval: 5, gain: 0.5 },
       { url: "/audio/resonant-chime.mp3", minInterval: 4, maxInterval: 8, gain: 0.4 },
     ],
   },
   {
-    // V. The Spark
-    start: 0.71, end: 0.86, prefetchAt: 0.61,
+    ...AUDIO_SCENES[4],
     samples: [
       { url: "/audio/electric-spark.mp3", minInterval: 2, maxInterval: 5, gain: 0.5 },
       { url: "/audio/match-strike.mp3", minInterval: 5, maxInterval: 10, gain: 0.55 },
@@ -244,10 +240,12 @@ export function useSceneAudio(progress: number) {
 
       const activeScene = getActiveScene(progress);
 
-      // Crossfade scene gains
+      // Crossfade scene gains -- only update active scene and neighbors
       for (let i = 0; i < SCENES.length; i++) {
         const g = sceneGainsRef.current[i];
         if (!g) continue;
+        const isNear = Math.abs(i - activeScene) <= 1;
+        if (!isNear && g.gain.value < 0.01) continue; // skip distant silent scenes
         const target = i === activeScene ? 1 : 0;
         g.gain.setTargetAtTime(target, now, 0.5);
       }
@@ -292,7 +290,8 @@ export function useSceneAudio(progress: number) {
 
       // Fade out noise after last scene
       if (noiseRef.current) {
-        const noiseTarget = progress > 0.86 ? Math.max(0, 0.06 * (1 - (progress - 0.86) / 0.14)) : 0.06;
+        const outroStart = TL.OUTRO.start;
+        const noiseTarget = progress > outroStart ? Math.max(0, 0.06 * (1 - (progress - outroStart) / (1 - outroStart))) : 0.06;
         noiseRef.current.gain.gain.setTargetAtTime(noiseTarget, now, 0.3);
       }
 

@@ -52,7 +52,7 @@ const tendrilVertexShader = /* glsl */ `
   }
 `;
 
-/* ---- Tendril fragment shader: gradient + SSS + vein detail ---- */
+/* ---- Tendril fragment shader: gradient + SSS + bark texture + vein detail ---- */
 const tendrilFragmentShader = /* glsl */ `
   uniform float uTime;
   uniform float uGrowth;
@@ -60,6 +60,7 @@ const tendrilFragmentShader = /* glsl */ `
   uniform vec3 uGoldColor;
   uniform vec3 uRoseColor;
   uniform float uDepthFactor; // 1.0 for main, 0.7 for branches
+  uniform sampler2D uBarkTex;
 
   varying vec2 vUv;
   varying vec3 vNormal;
@@ -77,6 +78,10 @@ const tendrilFragmentShader = /* glsl */ `
 
     // Moss at base, gold at tip
     vec3 baseColor = mix(uMossColor, uGoldColor, t * t);
+
+    // Blend in bark photo texture (40% photo, 60% procedural)
+    vec3 barkColor = texture2D(uBarkTex, vUv * vec2(1.0, 3.0)).rgb;
+    baseColor = mix(baseColor, barkColor * 0.5, 0.4);
 
     // Vein pattern: longitudinal darker bands
     float vein = sin(vUv.y * 30.0 + t * 5.0) * 0.5 + 0.5;
@@ -164,7 +169,7 @@ interface TendrilPath {
   depth: number;
 }
 
-function generateTendrilPaths(count: number): TendrilPath[] {
+export function generateTendrilPaths(count: number): TendrilPath[] {
   const rand = seededRandom(77);
   const paths: TendrilPath[] = [];
   const mainCount = Math.min(count, 22);
@@ -253,6 +258,13 @@ export function TreeBranches({ progress, isMobile }: { progress: number; isMobil
   const groupRef = useRef<THREE.Group>(null);
   const timeRef = useRef(0);
 
+  const barkTex = useMemo(() => {
+    const tex = new THREE.TextureLoader().load("/textures/moss-bark.jpg");
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    return tex;
+  }, []);
+
   const { tendrilPaths, tubeGeos, shaderMats } = useMemo(() => {
     const paths = generateTendrilPaths(TENDRIL_COUNT);
 
@@ -272,6 +284,7 @@ export function TreeBranches({ progress, isMobile }: { progress: number; isMobil
           uGoldColor: { value: new THREE.Color(0xc9a84c) },
           uRoseColor: { value: new THREE.Color(0xd4918a) },
           uDepthFactor: { value: p.depth === 0 ? 1.0 : 0.75 },
+          uBarkTex: { value: barkTex },
         },
         transparent: true,
         side: THREE.DoubleSide,
@@ -388,25 +401,31 @@ export function BranchParticles({ progress, isMobile }: { progress: number; isMo
   );
 }
 
-export function LeafBuds({ progress, isMobile }: { progress: number; isMobile: boolean }) {
+export function LeafBuds({ progress, isMobile, tipPositions }: { progress: number; isMobile: boolean; tipPositions?: THREE.Vector3[] }) {
   const BUD_COUNT = isMobile ? 16 : 30;
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const timeRef = useRef(0);
   const dummy = useMemo(() => new THREE.Object3D(), []);
 
+  const leafTex = useMemo(() => {
+    const tex = new THREE.TextureLoader().load("/textures/leaf-macro.jpg");
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }, []);
+
   const { budData, budMat } = useMemo(() => {
-    const paths = generateTendrilPaths(isMobile ? 18 : 36);
-    const data = paths.slice(0, BUD_COUNT).map((p, i) => {
+    const tips = tipPositions ?? generateTendrilPaths(isMobile ? 18 : 36).map(p => p.points[p.points.length - 1]);
+    const data = tips.slice(0, BUD_COUNT).map((tip, i) => {
       const rand = seededRandom(55 + i);
-      const tipPoint = p.points[p.points.length - 1];
       return {
-        position: tipPoint.clone(),
+        position: tip.clone(),
         phase: rand() * Math.PI * 2,
         isRose: rand() > 0.5,
       };
     });
 
     const mat = new THREE.MeshPhysicalMaterial({
+      map: leafTex,
       color: 0xd4918a,
       emissive: 0xc9a84c,
       emissiveIntensity: 0.5,
@@ -419,7 +438,7 @@ export function LeafBuds({ progress, isMobile }: { progress: number; isMobile: b
     });
 
     return { budData: data, budMat: mat };
-  }, [BUD_COUNT, isMobile]);
+  }, [BUD_COUNT, isMobile, tipPositions]);
 
   useFrame((_, delta) => {
     if (!meshRef.current) return;
@@ -455,6 +474,103 @@ export function LeafBuds({ progress, isMobile }: { progress: number; isMobile: b
     <instancedMesh ref={meshRef} args={[undefined, budMat, BUD_COUNT]}>
       <dodecahedronGeometry args={[0.35, 1]} />
     </instancedMesh>
+  );
+}
+
+export function LeafParticles({ progress, isMobile }: { progress: number; isMobile: boolean }) {
+  const COUNT = isMobile ? 40 : 100;
+  const meshRef = useRef<THREE.Points>(null);
+  const timeRef = useRef(0);
+
+  const fernTex = useMemo(() => {
+    const tex = new THREE.TextureLoader().load("/textures/fern-alpha.jpg");
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }, []);
+
+  const { positions, basePositions } = useMemo(() => {
+    const rand = seededRandom(123);
+    const p = new Float32Array(COUNT * 3);
+    const base = new Float32Array(COUNT * 3);
+    for (let i = 0; i < COUNT; i++) {
+      const phi = rand() * Math.PI * 2;
+      const theta = Math.acos(2 * rand() - 1);
+      const r = 1.5 + rand() * 3.5;
+      const x = r * Math.sin(theta) * Math.cos(phi);
+      const y = r * Math.sin(theta) * Math.sin(phi) * 0.6 + 1.5;
+      const z = r * Math.cos(theta) * 0.3;
+      p[i * 3] = x; p[i * 3 + 1] = y; p[i * 3 + 2] = z;
+      base[i * 3] = x; base[i * 3 + 1] = y; base[i * 3 + 2] = z;
+    }
+    return { positions: p, basePositions: base };
+  }, [COUNT]);
+
+  useFrame((_, delta) => {
+    if (!meshRef.current) return;
+    timeRef.current += delta;
+    const t = timeRef.current;
+    const sceneP = Math.max(0, Math.min(1, (progress - 0.21) / 0.15));
+    const leafPhase = Math.max(0, (sceneP - 0.4) / 0.6);
+
+    const posAttr = meshRef.current.geometry.attributes.position as THREE.BufferAttribute;
+    const arr = posAttr.array as Float32Array;
+    for (let i = 0; i < COUNT; i++) {
+      arr[i * 3] = basePositions[i * 3] + Math.sin(t * 0.3 + i * 0.5) * 0.2;
+      arr[i * 3 + 1] = basePositions[i * 3 + 1] + Math.cos(t * 0.2 + i * 0.7) * 0.15;
+      arr[i * 3 + 2] = basePositions[i * 3 + 2] + Math.sin(t * 0.15 + i * 0.9) * 0.1;
+    }
+    posAttr.needsUpdate = true;
+
+    const mat = meshRef.current.material as THREE.PointsMaterial;
+    mat.opacity = leafPhase * 0.6;
+  });
+
+  return (
+    <points ref={meshRef}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+      </bufferGeometry>
+      <pointsMaterial
+        map={fernTex}
+        size={isMobile ? 0.4 : 0.3}
+        color="#4a7c59"
+        transparent
+        opacity={0}
+        blending={THREE.AdditiveBlending}
+        depthWrite={false}
+        sizeAttenuation
+      />
+    </points>
+  );
+}
+
+export function GrowthBackdrop({ progress }: { progress: number }) {
+  const meshRef = useRef<THREE.Mesh>(null);
+
+  const foliageTex = useMemo(() => {
+    const tex = new THREE.TextureLoader().load("/textures/foliage-bg.jpg");
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }, []);
+
+  useFrame(() => {
+    if (!meshRef.current) return;
+    const sceneP = Math.max(0, Math.min(1, (progress - 0.21) / 0.15));
+    const mat = meshRef.current.material as THREE.MeshBasicMaterial;
+    mat.opacity = sceneP * 0.2;
+  });
+
+  return (
+    <mesh ref={meshRef} position={[0, 2, -6]} scale={[16, 8, 1]}>
+      <planeGeometry />
+      <meshBasicMaterial
+        map={foliageTex}
+        transparent
+        opacity={0}
+        depthWrite={false}
+        blending={THREE.AdditiveBlending}
+      />
+    </mesh>
   );
 }
 

@@ -1,43 +1,35 @@
 /**
  * Experience3D: Main 3D canvas orchestrator -- 5-Scene Architecture
  * Regenerate: The story of what was already happening.
- *
- * Timeline (normalized 0-1):
- *   0.00-0.03  Title
- *   0.03-0.18  I.   The Silence (buried seed)
- *   0.18-0.20  Transition I->II
- *   0.20-0.35  II.  The Proliferation (erupting growth)
- *   0.35-0.37  Transition II->III
- *   0.37-0.52  III. The Search (shifting polyhedra)
- *   0.52-0.54  Transition III->IV
- *   0.54-0.69  IV.  The Convergence (assembling architecture)
- *   0.69-0.71  Transition IV->V
- *   0.71-0.86  V.   The Spark (ignition bloom)
- *   0.86-1.00  Outro
+ * Timeline constants imported from @/constants/timeline.
  */
 
 import { useRef, useMemo } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { EmberCore, DustMotes, GroundPlane, EmberLighting } from "./EmberScene";
-import { TreeBranches, BranchParticles, LeafBuds, GrowthLighting } from "./GrowthScene";
+import { TreeBranches, BranchParticles, LeafBuds, GrowthLighting, LeafParticles, GrowthBackdrop, generateTendrilPaths } from "./GrowthScene";
 import { VoronoiCells, TessellationLighting } from "./TessellationScene";
-import { HelixStrands, HelixRungs, HelixLighting } from "./HelixScene";
-import { AttractorPath, SparkParticles, CentralStar, RadialRays, AttractorGlow, AttractorLighting } from "./AttractorScene";
+import { HelixStrands, HelixRungs, HelixLighting, ConvergenceBackdrop } from "./HelixScene";
+import { AttractorPath, SparkParticles, CentralStar, RadialRays, AttractorGlow, AttractorLighting, FinaleBackdrop } from "./AttractorScene";
 import { PostEffects } from "./PostEffects";
+import { HeroPlane } from "./HeroPlane";
+import { SCENES, TRANSITIONS, SCENE_GROUPS, CAMERA_LERP, isInTransition } from "@/constants/timeline";
 
 interface SceneProps {
   progress: number;
   isMobile?: boolean;
 }
 
-function detectWebGL(): boolean {
+// Evaluate once at module load -- never re-runs on render
+const hasWebGL = (() => {
+  if (typeof window === "undefined") return false;
   try {
     const c = document.createElement("canvas");
     const gl = c.getContext("webgl2") || c.getContext("webgl") || c.getContext("experimental-webgl");
     return gl instanceof WebGLRenderingContext || gl instanceof WebGL2RenderingContext;
   } catch { return false; }
-}
+})();
 
 function GradientFallback({ progress }: { progress: number }) {
   const phase = progress * 5;
@@ -49,7 +41,7 @@ function GradientFallback({ progress }: { progress: number }) {
   );
 }
 
-/* === MORPH CAMERA === */
+/* === MORPH CAMERA (uses SCENES constants) === */
 
 function MorphCamera({ progress, isMobile }: { progress: number; isMobile: boolean }) {
   const { camera } = useThree();
@@ -63,69 +55,84 @@ function MorphCamera({ progress, isMobile }: { progress: number; isMobile: boole
     let pos: THREE.Vector3;
     let lookAt: THREE.Vector3;
 
-    if (progress < 0.03) {
-      pos = new THREE.Vector3(0, 0, 8 + zPull);
+    const S = SCENES;
+    const T = TRANSITIONS;
+
+    if (progress < S.TITLE.end) {
+      // Hero / Title phase
+      const heroP = progress / S.TITLE.end;
+      // Slow dolly forward through the dissolving hero plane
+      pos = new THREE.Vector3(0, 0, 8 + zPull - heroP * 2);
       lookAt = new THREE.Vector3(0, 0, 0);
-    } else if (progress < 0.18) {
+    } else if (progress < S.I.end) {
       // Scene I: close orbit around seed
-      const t = (progress - 0.03) / 0.15;
+      const dur = S.I.end - S.I.start;
+      const t = (progress - S.I.start) / dur;
       const angle = t * Math.PI * 0.3;
       pos = new THREE.Vector3(Math.sin(angle) * 4 * xScale, 0.3 + t * 0.3, Math.cos(angle) * 4 + zPull);
       lookAt = new THREE.Vector3(0, 0, 0);
-    } else if (progress < 0.20) {
+    } else if (progress < T.I_II.end) {
       // Transition I->II: pull back to see growth
-      const t = (progress - 0.18) / 0.02;
+      const t = (progress - T.I_II.start) / (T.I_II.end - T.I_II.start);
       const e = t * t * (3 - 2 * t);
       pos = new THREE.Vector3(e * 2 * xScale, 0.5 * (1 - e) + 2 * e, 4 * (1 - e) + 8 * e + zPull);
       lookAt = new THREE.Vector3(0, e * 2, 0);
-    } else if (progress < 0.35) {
-      // Scene II: medium distance, centered on tendril mass, rising with growth
-      const t = (progress - 0.20) / 0.15;
+    } else if (progress < S.II.end) {
+      // Scene II: medium distance, rising with growth
+      const dur = S.II.end - S.II.start;
+      const t = (progress - S.II.start) / dur;
       pos = new THREE.Vector3(Math.sin(t * Math.PI * 0.4) * 4 * xScale, 2 + t * 4, 8 + zPull);
       lookAt = new THREE.Vector3(0, 2 + t * 3, 0);
-    } else if (progress < 0.37) {
+    } else if (progress < T.II_III.end) {
       // Transition II->III
-      const t = (progress - 0.35) / 0.02;
+      const t = (progress - T.II_III.start) / (T.II_III.end - T.II_III.start);
       const e = t * t * (3 - 2 * t);
       pos = new THREE.Vector3(2 * (1 - e) * xScale, 6 * (1 - e) + 1 * e, 8 * (1 - e) + 10 * e + zPull);
       lookAt = new THREE.Vector3(0, 5 * (1 - e), 0);
-    } else if (progress < 0.52) {
+    } else if (progress < S.III.end) {
       // Scene III: face-on, slight orbit
-      const t = (progress - 0.37) / 0.15;
+      const dur = S.III.end - S.III.start;
+      const t = (progress - S.III.start) / dur;
       const angle = t * Math.PI * 0.4;
       pos = new THREE.Vector3(Math.sin(angle) * 2 * xScale, Math.sin(t * Math.PI) * 1, 10 + zPull);
       lookAt = new THREE.Vector3(0, 0, 0);
-    } else if (progress < 0.54) {
+    } else if (progress < T.III_IV.end) {
       // Transition III->IV: sweep to low angle for helix
-      const t = (progress - 0.52) / 0.02;
+      const t = (progress - T.III_IV.start) / (T.III_IV.end - T.III_IV.start);
       const e = t * t * (3 - 2 * t);
       pos = new THREE.Vector3(e * 5 * xScale, 1 * (1 - e) + (-1) * e, 10 * (1 - e) + 14 * e + zPull);
       lookAt = new THREE.Vector3(0, e * 1, 0);
-    } else if (progress < 0.69) {
-      // Scene IV: wide orbit, looking at assembling helix (radius 14, eye-level)
-      const t = (progress - 0.54) / 0.15;
+    } else if (progress < S.IV.end) {
+      // Scene IV: wide orbit, assembling helix
+      const dur = S.IV.end - S.IV.start;
+      const t = (progress - S.IV.start) / dur;
       const angle = t * Math.PI * 0.5;
       pos = new THREE.Vector3(Math.sin(angle) * 14 * xScale, -1 + t * 3, Math.cos(angle) * 14 + zPull);
       lookAt = new THREE.Vector3(0, 2, 0);
-    } else if (progress < 0.71) {
+    } else if (progress < T.IV_V.end) {
       // Transition IV->V
-      const t = (progress - 0.69) / 0.02;
+      const t = (progress - T.IV_V.start) / (T.IV_V.end - T.IV_V.start);
       const e = t * t * (3 - 2 * t);
       pos = new THREE.Vector3(6 * (1 - e) * xScale, 2 * (1 - e) + 1 * e, 14 * (1 - e) + 8 * e + zPull);
       lookAt = new THREE.Vector3(0, 2 * (1 - e), 0);
-    } else if (progress < 0.86) {
+    } else if (progress < S.V.end) {
       // Scene V: orbit the attractor
-      const t = (progress - 0.71) / 0.15;
+      const dur = S.V.end - S.V.start;
+      const t = (progress - S.V.start) / dur;
       const angle = t * Math.PI * 0.6;
       pos = new THREE.Vector3(Math.sin(angle) * 7 * xScale, 1 + Math.sin(t * Math.PI * 0.5) * 2, Math.cos(angle) * 7 + zPull);
       lookAt = new THREE.Vector3(0, 0, 0);
     } else {
-      const t = (progress - 0.86) / 0.14;
+      // Outro
+      const dur = S.OUTRO.end - S.OUTRO.start;
+      const t = (progress - S.OUTRO.start) / dur;
       pos = new THREE.Vector3(Math.sin(t * 0.3) * 2 * xScale, 1 + t * 6, 8 + t * 5 + zPull);
       lookAt = new THREE.Vector3(0, -1, 0);
     }
 
-    const lerpSpeed = progress < 0.03 ? 0.015 : 0.06;
+    const lerpSpeed = progress < SCENES.TITLE.end ? CAMERA_LERP.TITLE
+      : isInTransition(progress) ? CAMERA_LERP.TRANSITION
+      : CAMERA_LERP.SCENE;
     currentPos.current.lerp(pos, lerpSpeed);
     currentLookAt.current.lerp(lookAt, lerpSpeed);
     camera.position.copy(currentPos.current);
@@ -138,33 +145,42 @@ function MorphCamera({ progress, isMobile }: { progress: number; isMobile: boole
 /* === SCENE GROUPS === */
 
 function EmberGroup({ progress, isMobile }: { progress: number; isMobile: boolean }) {
-  const active = progress < 0.21;
+  const active = progress < SCENE_GROUPS.EMBER.unmount;
   if (!active) return null;
   return (
     <group>
       <EmberLighting />
       <EmberCore progress={progress} />
       <DustMotes progress={progress} isMobile={isMobile} />
-      <GroundPlane />
+      <GroundPlane progress={progress} />
     </group>
   );
 }
 
 function GrowthGroup({ progress, isMobile }: { progress: number; isMobile: boolean }) {
-  const active = progress > 0.18 && progress < 0.38;
+  const active = progress > SCENE_GROUPS.GROWTH.mount && progress < SCENE_GROUPS.GROWTH.unmount;
+
+  const tipPositions = useMemo(() => {
+    const pathCount = isMobile ? 18 : 36;
+    const paths = generateTendrilPaths(pathCount);
+    return paths.map(p => p.points[p.points.length - 1]);
+  }, [isMobile]);
+
   if (!active) return null;
   return (
     <group scale={1.8}>
       <GrowthLighting />
       <TreeBranches progress={progress} isMobile={isMobile} />
       <BranchParticles progress={progress} isMobile={isMobile} />
-      <LeafBuds progress={progress} isMobile={isMobile} />
+      <LeafBuds progress={progress} isMobile={isMobile} tipPositions={tipPositions} />
+      <LeafParticles progress={progress} isMobile={isMobile} />
+      <GrowthBackdrop progress={progress} />
     </group>
   );
 }
 
 function TessellationGroup({ progress, isMobile }: { progress: number; isMobile: boolean }) {
-  const active = progress > 0.33 && progress < 0.55;
+  const active = progress > SCENE_GROUPS.TESSELLATION.mount && progress < SCENE_GROUPS.TESSELLATION.unmount;
   if (!active) return null;
   return (
     <group>
@@ -175,19 +191,20 @@ function TessellationGroup({ progress, isMobile }: { progress: number; isMobile:
 }
 
 function HelixGroup({ progress, isMobile }: { progress: number; isMobile: boolean }) {
-  const active = progress > 0.50 && progress < 0.75;
+  const active = progress > SCENE_GROUPS.HELIX.mount && progress < SCENE_GROUPS.HELIX.unmount;
   if (!active) return null;
   return (
     <group>
       <HelixLighting />
       <HelixStrands progress={progress} isMobile={isMobile} />
       <HelixRungs progress={progress} isMobile={isMobile} />
+      <ConvergenceBackdrop progress={progress} />
     </group>
   );
 }
 
 function AttractorGroup({ progress, isMobile }: { progress: number; isMobile: boolean }) {
-  const active = progress > 0.67;
+  const active = progress > SCENE_GROUPS.ATTRACTOR.mount;
   if (!active) return null;
   return (
     <group>
@@ -197,6 +214,7 @@ function AttractorGroup({ progress, isMobile }: { progress: number; isMobile: bo
       <CentralStar progress={progress} />
       <RadialRays progress={progress} />
       <AttractorGlow progress={progress} />
+      <FinaleBackdrop progress={progress} />
     </group>
   );
 }
@@ -248,7 +266,7 @@ function AmbientParticles({ isMobile }: { isMobile: boolean }) {
 /* === MAIN EXPORT === */
 
 export default function Experience3D({ progress, isMobile = false }: SceneProps) {
-  if (typeof window !== "undefined" && !detectWebGL()) {
+  if (!hasWebGL) {
     return <GradientFallback progress={progress} />;
   }
 
@@ -257,7 +275,7 @@ export default function Experience3D({ progress, isMobile = false }: SceneProps)
       <Canvas
         camera={{ position: [0, 0.5, 10], fov: isMobile ? 65 : 50, near: 0.1, far: 100 }}
         dpr={isMobile ? [1, 1.5] : [1, 2]}
-        shadows={progress > 0.50 && progress < 0.75}
+        shadows={progress > SCENE_GROUPS.HELIX.mount && progress < SCENE_GROUPS.HELIX.unmount}
         gl={{ antialias: !isMobile, powerPreference: isMobile ? "low-power" : "default", toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 0.9 }}
         style={{ pointerEvents: "none" }}
       >
@@ -265,6 +283,9 @@ export default function Experience3D({ progress, isMobile = false }: SceneProps)
         <fog attach="fog" args={["#0a0d08", isMobile ? 14 : 12, isMobile ? 40 : 35]} />
 
         <MorphCamera progress={progress} isMobile={isMobile} />
+
+        {/* Cinematic hero dissolve */}
+        <HeroPlane progress={progress} />
 
         <EmberGroup progress={progress} isMobile={isMobile} />
         <GrowthGroup progress={progress} isMobile={isMobile} />

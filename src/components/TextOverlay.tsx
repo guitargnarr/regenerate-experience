@@ -6,6 +6,7 @@
  */
 
 import type { CSSProperties, ReactNode } from "react";
+import { TEXT, TEXT_FADE, SCENES, TRANSITIONS, SCROLL_GUIDE } from "@/constants/timeline";
 
 interface TextOverlayProps {
   progress: number;
@@ -38,8 +39,8 @@ function TextSection({ children, enterAt, exitAt, progress, style, heroMode }: {
   style?: CSSProperties;
   heroMode?: boolean;
 }) {
-  const fadeInDuration = 0.03;
-  const fadeOutDuration = 0.03;
+  const fadeInDuration = TEXT_FADE.IN_DURATION;
+  const fadeOutDuration = TEXT_FADE.OUT_DURATION;
 
   let opacity = 0;
   let yOffset = 24;
@@ -88,17 +89,16 @@ function TextSection({ children, enterAt, exitAt, progress, style, heroMode }: {
 /* === Scroll Guide === */
 
 function ScrollGuide({ progress }: { progress: number }) {
-  // Scene numeral based on progress
   let numeral = "";
-  if (progress < 0.03) numeral = "";
-  else if (progress < 0.20) numeral = "I";
-  else if (progress < 0.37) numeral = "II";
-  else if (progress < 0.54) numeral = "III";
-  else if (progress < 0.71) numeral = "IV";
-  else if (progress < 0.88) numeral = "V";
+  if (progress < SCENES.TITLE.end) numeral = "";
+  else if (progress < SCENES.II.start) numeral = "I";
+  else if (progress < SCENES.III.start) numeral = "II";
+  else if (progress < SCENES.IV.start) numeral = "III";
+  else if (progress < SCENES.V.start) numeral = "IV";
+  else if (progress < SCENES.OUTRO.start + 0.02) numeral = "V";
   else numeral = "";
 
-  if (progress > 0.92) return null;
+  if (progress > SCROLL_GUIDE.GUIDE_HIDE_AT) return null;
 
   const angle = progress * Math.PI * 2;
   const r = 16;
@@ -121,7 +121,7 @@ function ScrollGuide({ progress }: { progress: number }) {
           {numeral}
         </div>
       )}
-      {progress < 0.08 && (
+      {progress < SCROLL_GUIDE.ARROW_HIDE_AT && (
         <svg width="12" height="12" viewBox="0 0 12 12" style={{ animation: "scrollArrowPulse 2s ease-in-out infinite" }}>
           <path d="M2 4L6 8L10 4" stroke="rgba(74,124,89,0.4)" strokeWidth="1.5" fill="none" strokeLinecap="round" />
         </svg>
@@ -159,8 +159,8 @@ export default function TextOverlay({ progress, isMobile }: TextOverlayProps) {
     }}>
       <div style={{ maxWidth: maxW, padding: `0 ${px}`, textAlign: "center" }}>
 
-        {/* === TITLE (Hero -- visible immediately on page load) === */}
-        <TextSection enterAt={0.0} exitAt={0.06} progress={progress} heroMode>
+        {/* === TITLE === */}
+        <TextSection enterAt={TEXT.TITLE.enterAt} exitAt={TEXT.TITLE.exitAt} progress={progress} heroMode>
           <div style={{ ...serif(isMobile ? "clamp(1.8rem, 6vw, 3rem)" : "clamp(2rem, 4vw, 3.5rem)", 700), color: "#6ea87e", letterSpacing: "0.08em", textShadow: "0 0 40px rgba(74, 124, 89, 0.4)" }}>
             REGENERATE
           </div>
@@ -170,7 +170,7 @@ export default function TextOverlay({ progress, isMobile }: TextOverlayProps) {
         </TextSection>
 
         {/* === ACT I: THE SILENCE === */}
-        <TextSection enterAt={0.05} exitAt={0.12} progress={progress}>
+        <TextSection enterAt={TEXT.I_INTRO.enterAt} exitAt={TEXT.I_INTRO.exitAt} progress={progress}>
           <div style={{ ...mono(isMobile ? "0.6rem" : "0.7rem"), color: "#a3c9a8", letterSpacing: "0.3em", marginBottom: "1.5rem" }}>
             I. THE SILENCE
           </div>
@@ -179,7 +179,7 @@ export default function TextOverlay({ progress, isMobile }: TextOverlayProps) {
           </div>
         </TextSection>
 
-        <TextSection enterAt={0.10} exitAt={0.18} progress={progress}>
+        <TextSection enterAt={TEXT.I_QUOTE.enterAt} exitAt={TEXT.I_QUOTE.exitAt} progress={progress}>
           <div style={{ ...serif(isMobile ? "1.1rem" : "1.3rem", 400), color: "#a3c9a8", fontStyle: "italic" }}>
             A seed doesn't know it's a seed.
           </div>
@@ -189,7 +189,7 @@ export default function TextOverlay({ progress, isMobile }: TextOverlayProps) {
         </TextSection>
 
         {/* === ACT II: THE PROLIFERATION === */}
-        <TextSection enterAt={0.21} exitAt={0.27} progress={progress}>
+        <TextSection enterAt={TEXT.II_INTRO.enterAt} exitAt={TEXT.II_INTRO.exitAt} progress={progress}>
           <div style={{ ...mono(isMobile ? "0.6rem" : "0.7rem"), color: "#a3c9a8", letterSpacing: "0.3em", marginBottom: "1.5rem" }}>
             II. THE PROLIFERATION
           </div>
@@ -198,14 +198,14 @@ export default function TextOverlay({ progress, isMobile }: TextOverlayProps) {
           </div>
         </TextSection>
 
-        <TextSection enterAt={0.27} exitAt={0.35} progress={progress}>
+        <TextSection enterAt={TEXT.II_QUOTE.enterAt} exitAt={TEXT.II_QUOTE.exitAt} progress={progress}>
           <div style={{ ...serif(isMobile ? "1.1rem" : "1.3rem", 400), color: "#c9a84c", fontStyle: "italic" }}>
             Growth that looks like chaos is still growth.
           </div>
         </TextSection>
 
         {/* === ACT III: THE SEARCH === */}
-        <TextSection enterAt={0.38} exitAt={0.44} progress={progress}>
+        <TextSection enterAt={TEXT.III_INTRO.enterAt} exitAt={TEXT.III_INTRO.exitAt} progress={progress}>
           <div style={{ ...mono(isMobile ? "0.6rem" : "0.7rem"), color: "#a3c9a8", letterSpacing: "0.3em", marginBottom: "1.5rem" }}>
             III. THE SEARCH
           </div>
@@ -214,7 +214,7 @@ export default function TextOverlay({ progress, isMobile }: TextOverlayProps) {
           </div>
         </TextSection>
 
-        <TextSection enterAt={0.44} exitAt={0.52} progress={progress}>
+        <TextSection enterAt={TEXT.III_QUOTE.enterAt} exitAt={TEXT.III_QUOTE.exitAt} progress={progress}>
           <div style={{ ...serif(isMobile ? "1.1rem" : "1.3rem", 400), color: "#a3c9a8", fontStyle: "italic" }}>
             The search isn't wasted.
           </div>
@@ -224,7 +224,7 @@ export default function TextOverlay({ progress, isMobile }: TextOverlayProps) {
         </TextSection>
 
         {/* === ACT IV: THE CONVERGENCE === */}
-        <TextSection enterAt={0.55} exitAt={0.61} progress={progress}>
+        <TextSection enterAt={TEXT.IV_INTRO.enterAt} exitAt={TEXT.IV_INTRO.exitAt} progress={progress}>
           <div style={{ ...mono(isMobile ? "0.6rem" : "0.7rem"), color: "#a3c9a8", letterSpacing: "0.3em", marginBottom: "1.5rem" }}>
             IV. THE CONVERGENCE
           </div>
@@ -233,14 +233,14 @@ export default function TextOverlay({ progress, isMobile }: TextOverlayProps) {
           </div>
         </TextSection>
 
-        <TextSection enterAt={0.61} exitAt={0.69} progress={progress}>
+        <TextSection enterAt={TEXT.IV_QUOTE.enterAt} exitAt={TEXT.IV_QUOTE.exitAt} progress={progress}>
           <div style={{ ...serif(isMobile ? "1.1rem" : "1.3rem", 400), color: "#c9a84c", fontStyle: "italic" }}>
             The strands found each other. Not because someone directed them, but because they were always part of the same helix.
           </div>
         </TextSection>
 
         {/* === ACT V: THE SPARK === */}
-        <TextSection enterAt={0.72} exitAt={0.78} progress={progress}>
+        <TextSection enterAt={TEXT.V_INTRO.enterAt} exitAt={TEXT.V_INTRO.exitAt} progress={progress}>
           <div style={{ ...mono(isMobile ? "0.6rem" : "0.7rem"), color: "#a3c9a8", letterSpacing: "0.3em", marginBottom: "1.5rem" }}>
             V. THE SPARK
           </div>
@@ -249,14 +249,14 @@ export default function TextOverlay({ progress, isMobile }: TextOverlayProps) {
           </div>
         </TextSection>
 
-        <TextSection enterAt={0.78} exitAt={0.86} progress={progress}>
+        <TextSection enterAt={TEXT.V_QUOTE.enterAt} exitAt={TEXT.V_QUOTE.exitAt} progress={progress}>
           <div style={{ ...serif(isMobile ? "1.1rem" : "1.3rem", 400), color: "#e2cc7a", fontStyle: "italic" }}>
             The chaos was never chaos. It was a system teaching itself to exist.
           </div>
         </TextSection>
 
         {/* === OUTRO === */}
-        <TextSection enterAt={0.88} exitAt={1.01} progress={progress}>
+        <TextSection enterAt={TEXT.OUTRO.enterAt} exitAt={TEXT.OUTRO.exitAt} progress={progress}>
           <div style={{ ...sans(isMobile ? "0.95rem" : "1.05rem"), color: "#e4dcc8", lineHeight: 1.8, maxWidth: "540px", margin: "0 auto" }}>
             Regeneration doesn't announce itself. It happens in the silence between efforts, in the projects that fail, in the work done for reasons you can't yet name.
           </div>
@@ -266,11 +266,11 @@ export default function TextOverlay({ progress, isMobile }: TextOverlayProps) {
         </TextSection>
 
         {/* Transition lines */}
-        <TransitionLine progress={progress} at={0.19} />
-        <TransitionLine progress={progress} at={0.36} />
-        <TransitionLine progress={progress} at={0.53} />
-        <TransitionLine progress={progress} at={0.70} />
-        <TransitionLine progress={progress} at={0.87} />
+        <TransitionLine progress={progress} at={TRANSITIONS.I_II.at} />
+        <TransitionLine progress={progress} at={TRANSITIONS.II_III.at} />
+        <TransitionLine progress={progress} at={TRANSITIONS.III_IV.at} />
+        <TransitionLine progress={progress} at={TRANSITIONS.IV_V.at} />
+        <TransitionLine progress={progress} at={TRANSITIONS.V_OUTRO.at} />
       </div>
 
       <ScrollGuide progress={progress} />
